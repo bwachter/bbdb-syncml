@@ -1,5 +1,5 @@
 ;;; syncml-commands.el -- An elisp implementation of a SyncML client. This file contains the syncml commands
-;; $Id: syncml-commands.el,v 1.3 2003/11/22 23:42:27 joergenb Exp $
+;; $Id: syncml-commands.el,v 1.4 2004/01/17 16:30:16 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -93,6 +93,7 @@ XML declaration: ((Alert | Atomic | Copy | Exec | Get | Map | Put | Results | Se
 
 MYDATA is a string containing the #PCDATA content.
 Example: <Data>212<Data>   Indicates a successful authentication."
+  (syncml-debug 3 'syncml-create-data-command "Triggered.")
   (let* ((datanode (dom-document-create-element ownerdoc "Data")))
     (cond ((stringp mydata)
 	   (dom-node-append-child datanode (dom-document-create-text-node ownerdoc mydata)))
@@ -140,6 +141,7 @@ METADATA is either a string or a dom-node. if a dom-node, it's owner-document sh
 
 ;; syncml-create-target-command () 
 (defun syncml-create-target-command (ownerdoc locuri &optional locname)
+  (syncml-debug 3 'syncml-create-target-command "Triggered.")
   (let* ((targetnode (dom-document-create-element ownerdoc "Target"))
 	 (locurinode (dom-document-create-element ownerdoc "LocURI"))
 	 (locuritext (dom-document-create-text-node ownerdoc locuri))
@@ -154,6 +156,7 @@ METADATA is either a string or a dom-node. if a dom-node, it's owner-document sh
 
 ;; syncml-create-source-command () 
 (defun syncml-create-source-command (ownerdoc locuri &optional locname)
+  (syncml-debug 3 'syncml-create-source-command "Triggered.")
   (let* ((sourcenode (dom-document-create-element ownerdoc "Source"))
 	 (locurinode (dom-document-create-element ownerdoc "LocURI"))
 	 (locuritext (dom-document-create-text-node ownerdoc locuri))
@@ -234,6 +237,7 @@ CmdID, NoResp?, Cred?, Meta?, Item+)"
   "Returns a string with the <Status> command 
 XML definition: 
 CmdID, MsgRef, CmdRef, Cmd, TargetRef*, SourceRef*, Cred?, Chal?, Data, Item*)"
+  (syncml-debug 3 'syncml-create-status-command "Triggered")
   (let* ((statusnode (dom-document-create-element ownerdoc "Status"))
 	 (msgrefnode (syncml-create-msgref-command ownerdoc msgref))
 	 (cmdrefnode (syncml-create-cmdref-command ownerdoc cmdref))
@@ -249,8 +253,29 @@ CmdID, MsgRef, CmdRef, Cmd, TargetRef*, SourceRef*, Cred?, Chal?, Data, Item*)"
     (dom-node-append-child statusnode datanode)
     (if (not (null itemnode))
 	(dom-node-append-child statusnode itemnode))
-    statusnode))
+    statusnode)) 
   
+
+
+(defun syncml-create-alert-command (ownerdoc &optional crednode datanode itemnode norespnode)
+  "Returns a string with the <Alert> command with the given ALERT-COMMAND-NUMBER
+
+XML definition:
+Alert: (CmdID, NoResp?, Cred?, Data?, Item*)
+Data: When specified in an Alert, the element type specifies the type of alert. 
+Item: When specified in an Alert, the element type specifies the
+      parameters for the alert type. (Target?, Source?, Meta?, Data?)
+"
+  (let* ((alertnode (dom-document-create-element ownerdoc "Alert"))
+	 (cmdidnode (syncml-create-cmdid-command ownerdoc)))
+    (dom-node-append-child alertnode cmdidnode)
+    (if (not (null norespnode))
+	(dom-node-append-child alertnode norespnode))
+    (if (not (null crednode))
+	(dom-node-append-child alertnode crednode))
+    (if (not (null itemnode))
+	(dom-node-append-child alertnode itemnode))
+    alertnode))
 
 
 ;; syncml-create-cmdid-command
@@ -275,6 +300,7 @@ CmdID, MsgRef, CmdRef, Cmd, TargetRef*, SourceRef*, Cred?, Chal?, Data, Item*)"
 ;;
 (defun syncml-create-msgid-command (ownerdoc)
   "Returns a <MsgID> node.  Incrementing the msgid is not done, should be set before starting to construct each SyncML message. (The messageid shall increase by 1 for each message sent.)"
+  (syncml-debug 3 'syncml-create-msgid-command "Triggered.") 
   (let* ((msgidnode (dom-document-create-element ownerdoc "MsgID")))
     (dom-node-append-child msgidnode (dom-document-create-text-node ownerdoc syncml-current-msgid))
     msgidnode))
@@ -283,6 +309,7 @@ CmdID, MsgRef, CmdRef, Cmd, TargetRef*, SourceRef*, Cred?, Chal?, Data, Item*)"
 ;;
 (defun syncml-create-cmd-command (ownerdoc cmd)
   "Returns a <Cmd> node. "
+  (syncml-debug 3 'syncml-create-cmd-command "Triggered.")
   (let* ((cmdnode (dom-document-create-element ownerdoc "Cmd")))
     (dom-node-append-child cmdnode (dom-document-create-text-node ownerdoc cmd))
     cmdnode))
@@ -299,6 +326,7 @@ CmdID, MsgRef, CmdRef, Cmd, TargetRef*, SourceRef*, Cred?, Chal?, Data, Item*)"
 ;;
 (defun syncml-create-cmdref-command (ownerdoc cmdref)
   "Returns a <CmdRef> node."
+  (syncml-debug 3 'syncml-create-cmdred-command "Triggered.") 
   (let* ((cmdrefnode (dom-document-create-element ownerdoc "CmdRef")))
     (dom-node-append-child cmdrefnode (dom-document-create-text-node ownerdoc cmdref))
     cmdrefnode))
@@ -307,6 +335,7 @@ CmdID, MsgRef, CmdRef, Cmd, TargetRef*, SourceRef*, Cred?, Chal?, Data, Item*)"
 ;;
 (defun syncml-create-msgref-command (ownerdoc msgref)
   "Returns a <MsgRef> node. "
+  (syncml-debug 3 'syncml-create-msgref-command "Triggered.") 
   (let* ((msgrefnode (dom-document-create-element ownerdoc "MsgRef")))
     (dom-node-append-child msgrefnode (dom-document-create-text-node ownerdoc msgref))
     msgrefnode))
@@ -375,6 +404,31 @@ Example: <Type>212<Type>   Indicates a successful authentication."
 	  (dom-node-attributes typenode) (list typeattr))
     (dom-node-append-child typenode textnode)
     typenode))
+
+
+;; syncml-create-metinf-anchor-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <Anchor> command.
+;; XML Declaration: (Last?, Next)
+;; Parent Elements: Alert, Cred, Item, Status, Search
+(defun syncml-create-metinf-anchor-command (ownerdoc) 
+  "*Returns a DOM node corresponding to a SyncML <Anchor> command.
+
+ANCHORDATA is a string containing the #PCDATA content.
+Example: <Anchor>212<Anchor>   Indicates a successful authentication."
+  (let* ((anchornode (dom-document-create-element ownerdoc "Anchor"))
+	 (anchorattr (dom-document-create-attribute ownerdoc "xmlns"))
+	 (lastnode (dom-document-create-element ownerdoc "Last" ))
+	 (nextnode (dom-document-create-element ownerdoc "Next" )))
+    (setf (dom-attr-value anchorattr) "syncml:metinf"
+	  (dom-node-attributes anchornode) (list anchorattr))
+    (dom-node-append-child anchornode lastnode)
+    (dom-node-append-child anchornode nextnode)
+    (dom-node-append-child lastnode (dom-document-create-text-node ownerdoc syncml-previous-timestamp))
+    (dom-node-append-child nextnode (dom-document-create-text-node ownerdoc syncml-current-timestamp))
+
+    anchornode))
+
 
 
 

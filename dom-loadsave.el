@@ -1,6 +1,6 @@
 ;; dom-loadsave.el -- An minimalist implementation of the DOM Level 3 
 ;;                    Load and Save extension.
-;; $Id: dom-loadsave.el,v 1.4 2003/11/22 23:42:27 joergenb Exp $
+;; $Id: dom-loadsave.el,v 1.5 2004/01/17 16:30:16 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -122,6 +122,7 @@ child nodes."
       (dom-node-value node)))
    
    ;; insert other node types here. (none applicable, attribute nodes are dealt with above).
+   (t (error "wrong node type %s" node))
    );; end of cond
   )
   
