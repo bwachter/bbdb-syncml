@@ -3,46 +3,50 @@
 ;; then enter the text in that file's own buffer.
 
 
-(bbdb-record-set-firstname (car (bbdb-records)) "jøø.")
-(bbdb-create-internal "magnhild sægrov" "apalløkka" "ms@underdusken.no" nil nil nil)
-(bbdb-save-db)
 
-(bbdb-search (bbdb-records) nil nil nil )
-(bbdb-record-name)
 
-(bbdb-field-edit-get-values (car (bbdb-records)) "luid")
 
-(bbdb-record-getprop (bbdb-records) "net")
-
-(setq gabba (bbdb-records))
-
+;
+; I AM HERE NOW
+;
+(require 'bbdb-syncml)
 (require 'bbdb-vcard-export)
-(defun garr ()
-	(set-buffer (get-buffer-create "*foo"))
-	(dolist (node (bbdb-records) nil)
-		(bbdb-vcard-export-record-insert-vcard node)
-		(insert "\n")))
+(require 'md5 "/home/jb/src/lisp/md5.el")
+(setq bbdb-syncml-debug-level 3)
+(setq syncml-debug-level 3)
+(setq syncml-host "http://binningsbo.homelinux.org:8080/multisync")
+(setq syncml-target-locuri "binningsbo.homelinux.org")
+(setq syncml-source-locuri "jb_bbdb")
+(setq syncml-target-database "addressbook")
+(setq syncml-user "syncml")
+(setq syncml-passwd "syncml")
+(setq syncml-use-md5 'nil)
+(bbdb-syncml-synchronize)
 
-(garr)
+(md5 "syncml:syncml")
+(base64-encode-string "syncml:syncml")
+(md5 (base64-encode-string "syncml:syncml"))
+(base64-encode-string (md5 "syncml:syncml"))
 
-(setq bbdb-syncml-last-sync-timestamp "20030205T172452Z")
+H79Dmt0WCk2Xkb1FjJqarg==
+
+(if 'syncml-use-md5
+    (md5 syncml-passwd)
+  syncml-passwd)
+
+wlTB98Ptd0oT5eovYGGGgg==
+
+
+(bbdb-syncml-validate-luids 't)
+
 
 (bbdb-syncml-get-added-records)
-(bbdb-syncml-debug 'gabba 
-									 "the following luids are modified: %S"
-									 (bbdb-syncml-get-modified-records bbdb-syncml-last-sync-timestamp)
-)
+(bbdb-syncml-get-modified-records)
 
-
-(require 'bbdb-syncml)
-(bbdb-syncml-initialize)
-
-(bbdb-syncml-validate-luids)
-
-(setq gabba (bbdb-syncml-get-next-luid))
 
 ;; DENNE SØKEFUNKSJONEN FUNGERER:
-(let ((notes (cons (intern "luid") "^1$")))
+
+(let ((notes (cons (intern "luid") "^5$")))
 	(bbdb-search (bbdb-records) nil nil nil notes))
 
 ;; FRAMSTØYT PÅ Å ENDRE RECORD BASERT PÅ SØKEFUNKSJON.
@@ -56,6 +60,55 @@
 	((let ((node bbdb-search (bbdb-records) nil nil nil notes))
 		 (bbdb-record-putprop node 
 											 (if (string= "" string) nil string)))
+
+
+
+
+
+
+
+
+(bbdb-record-set-firstname (car (bbdb-records)) "jøø.")
+(bbdb-create-internal "magnhild sægrov" "apalløkka" "ms@underdusken.no" nil nil nil)
+(bbdb-save-db)
+
+(bbdb-search (bbdb-records) nil nil nil )
+(bbdb-record-name)
+
+(bbdb-field-edit-get-values (car (bbdb-records)) "luid")
+
+(bbdb-record-getprop (bbdb-records) "net")
+
+(setq gabba (bbdb-records))
+
+
+(defun garr ()
+	(set-buffer (get-buffer-create "*foo"))
+	(dolist (node (bbdb-records) nil)
+		(bbdb-vcard-export-record-insert-vcard (car (bbdb-syncml-get-record-by-luid "5")))
+		(insert "\n")))
+
+(garr)
+
+(setq bbdb-syncml-last-sync-timestamp "20030205T172452Z")
+
+(bbdb-syncml-get-added-records)
+(bbdb-syncml-debug 'gabba 
+				   "the following luids are modified: %S"
+				   (bbdb-syncml-get-modified-records bbdb-syncml-last-sync-timestamp)
+)
+
+
+
+
+(bbdb-syncml-initialize) ;; only 1st time
+
+(setq bbdb-syncml-debug-level 2)
+
+
+
+
+
 
 
 

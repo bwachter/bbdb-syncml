@@ -1,11 +1,11 @@
 ;; dom-loadsave.el -- An minimalist implementation of the DOM Level 3 
 ;;                    Load and Save extension.
-;; $Id: dom-loadsave.el,v 1.1 2003/02/06 14:14:22 joergenb Exp $
+;; $Id: dom-loadsave.el,v 1.2 2003/10/13 19:27:48 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
-;; Author: Jørgen Binningsbø <jb@pvv.org>
-;; Maintainer: Jørgen Binningsbø <jb@pvv.org>
+;; Author: Jørgen Binningsbø <jb at pvv.org>
+;; Maintainer: Jørgen Binningsbø <jb at pvv.org>
 ;; Version: 
 ;; Created: Jan 10 2003
 ;; Keywords: xml
@@ -36,38 +36,84 @@
 
 (require 'dom)
 
-(defun dom-node-write-to-string (node)
+(defconst dom-loadsave-indent 2)
+
+(defun dom-node-write-to-string (node &optional base-indent-level)
+  (setq dom-loadsave-indent-level 0)
+  (let* ((dummy (dom-node-write-to-string-inner node)))
+    (setq dom-loadsave-indent-level 0)
+    dummy))
+
+(defun dom-node-write-to-string-inner (node)
   "return a string with the XML-representation of NODE and it's 
 child nodes."
-	;; check the type of NODE
-	(cond 
+  (cond    
+   ;; a DOCUMENT node hands processing further to it's ELEMENT 
+   ((dom-document-p node)
+    (dom-node-write-to-string-inner (dom-document-element node)))
+   
+   ;; an ELEMENT node basically prints the start tag, processes all children, 
+   ;; and the prints the end tag. 
+   ((dom-element-p node)
+    (concat 
+     ;; first, determine indent
+     ;;(number-to-string dom-loadsave-indent-level)
+     (make-string (* dom-loadsave-indent-level dom-loadsave-indent) (string-to-char " "))
+     ;; add the tag name
+     "<" 
+     (if (symbolp (dom-node-name node))
+	 (symbol-name (dom-node-name node))
+       (dom-node-name node))
+     ;; check for attributes
+     (if (dom-node-has-attributes node)	 
+	 (let (res)
+	   (dolist (innernode (dom-node-attributes grrr) res)
+	     (if (dom-attr-p innernode)
+		 (push (concat (if (symbolp (dom-node-name innernode))
+				   (symbol-name (dom-node-name innernode))
+				 (dom-node-name innernode))
+			       "='" 
+			       (if (symbolp (dom-node-value innernode))			
+				   (symbol-name (dom-node-value innernode))
+				 (dom-node-value innernode))
+			       "'")
+		       res)))
+	   (mapconcat 'concat (cons " " res) " ")))
+;;	 "yes-attribute")
+;;	 (dolist (innernode (dom-node-attributes node))
+;;	   (if (dom-attr-p innernode)
+;;	       (concat innernode-name "='" innernode-value "'"))))
+     ">"
+     (if (dom-element-p (dom-node-first-child node))
+	 "\n")
+     ;; if the node has any children, process them first
+     (if (dom-node-has-child-nodes node)
+	 (progn 
+	   (setq dom-loadsave-indent-level (+ 1 dom-loadsave-indent-level))
+	   (mapconcat 'dom-node-write-to-string-inner (dom-node-child-nodes node) ""))
+       "")
 
-	 ;; a DOCUMENT node hands processing further to it's ELEMENT 
-	 ((dom-document-p node)
-		(dom-node-write-to-string (dom-document-element node)))
+     ;; add the closing tag
+     ;; if the node's first child was an element-node, then we're supposed to write the end tag on a new line,
+     ;; and unindented one step according to the level of the children.
+     (if (dom-element-p (dom-node-first-child node))
+	 (progn
+;;	   (setq dom-loadsave-indent-level (1- dom-loadsave-indent-level))
+	   (make-string (* (- dom-loadsave-indent-level 1) dom-loadsave-indent) (string-to-char " "))))
+     "</" 
+     (progn 
+       (setq dom-loadsave-indent-level (1- dom-loadsave-indent-level))
+       (if (symbolp (dom-node-name node))
+	   (symbol-name (dom-node-name node))
+	 (dom-node-name node)))
+     ">\n"))
+   ;; a TEXT node simply returns it's value.
+   ((dom-text-p node)
+    (if (numberp (dom-node-value node))
+	(number-to-string (dom-node-value node))
+      (dom-node-value node)))
+   );; end of cond
+  )
 
-	 ;; an ELEMENT node basically prints the start tag, processes all children, 
-	 ;; and the prints the end tag. 
-	 ((dom-element-p node)
-		(concat 
-		 ;; first, add the tag name
-		 "<" 
-		 (symbol-name (dom-node-name node))
-		 ;; TODO: add attribute support here.
-		 ">"
-		 ;; if the node has any children, process them first
-		 (if (dom-node-has-child-nodes node)
-				 (mapconcat 'dom-node-write-to-string (dom-node-child-nodes node) "")
-			 "")
-		 ;; add the closing tag
-		 "</" 
-		 (symbol-name (dom-node-name node)) 
-		 ">"))
-	 
-	 ;; a TEXT node simply returns it's value.
-	 ((dom-text-p node)
-		(dom-node-value node))
-	 );; end of cond
-	);; end of defun
 
 (provide 'dom-loadsave)

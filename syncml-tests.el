@@ -1,5 +1,149 @@
 ;; this file just contains some tests used when developing bbdb-syncml
 
+(require 'dom-loadsave)
+
+;; how to create elements:
+
+(let* ((myxml "<node1><node2>hei</node2></node1>")
+       (syncmldoc (make-dom-document
+		   :name "hei"
+		   :type dom-document-node)))      
+  (dom-document-create-element syncmldoc "SyncHdr")
+  syncmldoc)
+
+
+
+(let* ((myxml "<node1><node2>hei</node2></node1>")
+       (syncmldoc (make-dom-document
+		   :name "MySyncMLDocument"
+		   :type dom-document-node
+		   :element (make-dom-element 
+			     :name "SyncML" 
+			     :type dom-element-node)))
+       (mynode (make-dom-text 
+		:name "SyncHdrasdfsadfa"
+		:type dom-text-node
+		:value "sdfasfsdfsd"))
+       )
+  
+  (dom-node-append-child (dom-document-element syncmldoc) mynode)
+  (dom-node-write-to-string syncmldoc))
+;  syncmldoc)
+
+
+(let* ((mynode (make-dom-element 
+		:name "SyncHdr"
+		:type dom-element-node))
+       )
+  mynode)
+
+
+
+
+(let* ((syncmldoc (make-dom-document :name "MySyncMLDocument"
+				     :type dom-document-node))
+       (syncmlelement (dom-document-create-element syncmldoc "SyncML")))
+  (setf (dom-document-owner-document syncmldoc) syncmldoc
+	(dom-document-element syncmldoc) syncmlelement)
+  (dom-node-append-child syncmlelement (syncml-create-data-command syncmldoc "syncml:sdfsdfj"))
+  (dom-node-write-to-string syncmldoc))
+  ;;  syncmldoc-element)
+  syncmldoc)
+
+(setq doc (syncml-create-syncml-document))
+
+(let* ((mydoc (syncml-create-syncml-document))
+       (crednode (syncml-create-cred-command mydoc))
+       (mysyncml (dom-document-element mydoc)))
+  (dom-node-append-child mysyncml 
+			 (syncml-create-synchdr-command 
+			  mydoc 
+			  (syncml-create-target-command mydoc syncml-target-locuri)
+			  (syncml-create-source-command mydoc syncml-source-locuri)
+			  (syncml-create-cred-command mydoc)))
+  (dom-node-append-child mysyncml (syncml-create-target-command mydoc "hei" "hå"))
+  (dom-node-write-to-string mydoc))
+
+
+
+
+(let* ((mydoc (syncml-create-syncml-document))
+       (mysyncml (dom-document-element mydoc)))
+  (setq grrr (syncml-create-metinf-type-command mydoc "hei"))			 
+  (dom-node-append-child mysyncml grrr)
+  (dom-node-write-to-string mydoc))
+
+(dom-element-p grrr)
+(dom-node-has-attributes (dom-node-first-child grrr))
+(dom-node-has-attributes  grrr)
+(dom-node-attributes grrr)
+(dom-node-attributes (dom-node-first-child grrr))
+(dom-attr-p )
+
+(let (res)
+  (dolist (innernode (dom-node-attributes grrr) res)
+    (if (dom-attr-p innernode)
+	(push (concat (if (symbolp (dom-node-name innernode))
+			  (symbol-name (dom-node-name innernode))
+			(dom-node-name innernode))
+		      "='" 
+		      (if (symbolp (dom-node-value innernode))			
+			  (symbol-name (dom-node-value innernode))
+			(dom-node-value innernode))
+		      "'")
+	      res)))
+  (mapconcat 'concat res " "))
+
+
+
+(dom-node-p doc)
+(dom-document-p doc)
+(dom-element-p (dom-document-element doc))
+
+(number-p 1)
+
+
+(dom-node-write-to-string (syncml-create-meta-command "syncml:sdfsdfj"))
+(dom-node-write-to-string 
+ (syncml-create-meta-command 
+  (dom-node-append-child (make-dom-attr :name "xmlns" 
+					:type dom-attribute-node
+					:value "syncml:metinf")
+			 (make-dom-element :name "Type" 
+					   :type dom-element-node) 
+			 )))
+(dom-node-write-to-string 
+ (syncml-create-meta-command 
+  1))
+
+
+  
+  (dom-node-append-child (dom-document-element syncmldoc) mynode)
+  (dom-node-write-to-string syncmldoc))
+;  syncmldoc)
+
+
+
+
+(dom-make-node-from-xml "<?xml version='1.0'?><n><n2/></n>" (make-dom-document :name "hei" :type dom-document-node))
+
+
+(let* ((myxml "<node1><node2>hei</node2></node1>")
+       (doc (make-dom-document
+	     :name "SyncML"
+	     :type dom-document-node))
+       
+       (node (make-dom-node dom-make-node-from-xml myxml doc)))
+  (setf (dom-document-owner-document doc) doc; required in dom-add-children
+	(dom-document-element doc) node)
+  doc)
+
+
+
+
+
+
+
 (require 'syncml)
 
 (syncml-init)
@@ -82,7 +226,7 @@
 ;; other stuff:
 
 (setq init-thing-doc (dom-make-document-from-xml (car (xml-parse-file "/home/jb/src/lisp/s4j_init.xml"))))
-(xml-parse-file "/home/jb/src/lisp/xmltest.xml")
+(xml-parse-file "/home/jb/src/lisp/xmltest.xml")q
 
 (setq doc (dom-make-document-from-xml 
 					 (car (xml-parse-file "/home/jb/src/lisp/xmltest.xml"))))

@@ -1,5 +1,5 @@
 ;;; bbdb-syncml.el -- A SyncML client for the BBDB database.
-;; $Id: bbdb-syncml.el,v 1.2 2003/03/29 00:09:40 joergenb Exp $
+;; $Id: bbdb-syncml.el,v 1.3 2003/10/13 19:27:48 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -49,63 +49,118 @@
 this MUST be unique over the lifespan of a BBDB database")
 
 (defvar bbdb-syncml-last-sync-timestamp nil
-	"*The timestamp at the previous successful synchronzation")
+  "*The timestamp at the previous successful synchronzation")
 
 (defun bbdb-syncml-synchronize () 
-	"Synchronizes the bbdb database with the SyncML server."
+  "Synchronizes the bbdb database with the SyncML server.
 
-	;;do some initialization
+See chapter 5 in the 'SyncML Sync Protocol' document available from www.syncml.org"
+  
+  ;;do some initialization
+  (bbdb-syncml-debug 1 'bbdb-syncml-synchronzie "STARTING SYNCHRONIZATION" )
+  
+  ;;check last sync time -get from .bbdb.syncml
+  (setq bbdb-syncml-last-sync (bbdb-syncml-get-last-sync))
+  
+  ;; send initialization package to server.
+  ;; the syncml-init function will break if an error occurred.
+  (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Initalizing" )
+  (syncml-init)
+  ;; if the server sent response 508 to the SYNC command, then syncing should be slow.  
+  ;; syncml-init sets the global variable SYNCML-DOING-SLOW-SYNC to 't in this case.
 
-	;;check last sync time -get from .bbdb.syncml
-	(setq bbdb-syncml-last-sync (bbdb-syncml-get-last-sync))
-
-	;; send initializations package to server.
-	;; here, we should probably do:
-	;;	(let ((bbdb-init-header (syncml-header myServer myDatabase))
-	;;				(bbdb-init-alert (syncml-create-alert-command syncml-constant-two-way)))
-	;;		(syncml-init bbdb-init-header bbdb-init-alert))
-	(syncml-init)
-
-	;; if the user f.ex. would like to sync his bbdb both with a personal syncml database, 
-	;; and perhaps a (read-only) company syncml database, i believe you could either send two 
-	;; ALERT commands in the sync init message, or do it as two separate syncs, as the Target/GUID pair 
-	;; would be different between the two databases.
-
-
-	;; if response ok, 
-	;; find all records added, modified and deleted in BBDB since last sync time 
-
-	;; note: if the server forced a SLOW SYNC, what then?
-;;	(let ((bbdb-syncml-added-luids (bbdb-syncml-get-added-records bbdb-syncml-last-sync))
-;;				(bbdb-syncml-modified-luids (bbdb-syncml-get-modified-records bbdb-syncml-last-sync))
-;;				(bbdb-syncml-deleted-luids (bbdb-syncml-get-deleted-records bbdb-syncml-last-sync)))
-;;		())
+  (set-buffer (get-buffer-create "*syncml-transmit*"))
+  (erase-buffer)
+  
+  (if 'syncml-doing-slow-sync
+      ;; Slow sync triggered.  We just send <add> commands for all records in the bbdb database.      
+      (progn
+	(bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Slow sync forced by server.")
+	(let* ((syncmldoc (syncml-create-syncml-document))
+	       (syncmlnode (dom-document-element syncmldoc))
+	       (synchdrnode (syncml-create-synchdr-command
+			     syncmldoc 
+			     (syncml-create-target-command syncmldoc syncml-target-locuri)
+			     (syncml-create-source-command syncmldoc syncml-source-locuri)))
+	       (syncbodynode (syncml-create-syncbody-command syncmldoc))
+	       (bbdb-syncml-added-luids (bbdb-syncml-get-all-records)))
+	  (dom-node-append-child syncmlnode synchdrnode)
+	  ;; send a status command in response for the SyncHdr from server
+	  ;; send a status command in response for the Alert from server.
+	  (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Processing all records." )
+	  (set-buffer (get-buffer-create "*syncml-transmit*"))
+	  (goto-char (point-max))
+	  (bbdb-syncml-debug 1 'bbdb-syncml-synchronzie 
+			     "Got this list of added luids: %S" bbdb-syncml-added-luids)
+	  (dolist (luid bbdb-syncml-added-luids)
+	    (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "Processing luid %S " luid)
+	    (let ((temp-add-command (syncml-create-add-command 
+				     luid 
+				     (bbdb-vcard-export-get-record-as-vcard 
+				      (car (bbdb-syncml-get-record-by-luid luid))))))
+	      (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "<Add>command representation: %S " temp-add-command)
+	      (insert temp-add-command))))
+	(insert "<Final/></SyncBody><SyncML>")
+	(let ((url-working-buffer (get-buffer-create
+				   (syncml-get-temp-buffer-name)))
+	      (url-request-method "POST")
+	      (url-package-name "Lispmeralda-Emacs")
+	      (url-package-version "1.0")
+	      (url-request-data (concat "<?xml version=\"1.0\"?>\n" (buffer-string)))
+	      (url-request-extra-headers (cons
+					  (cons  "Content-Type" "application/vnd.syncml+xml")
+					  url-request-extra-headers)))
+	  
+	  ;;		(set-buffer url-working-buffer)
+	  (syncml-debug 'syncml-post "Posting:\n %S" url-request-data) 
+	  (kill-buffer (get-buffer "*syncml-response*"))
+	  (set-buffer (get-buffer-create "*syncml-response*"))
+	  
+	  ;; this actually sends the init command to the server
+	  (insert-buffer (url-retrieve-synchronously syncml-host))
+	  
+	  ;; TODO: need to check the HTTP response code here!! 
+	  (syncml-debug 'syncml-post "Got:\n %S" (buffer-string))
+	  
+					;		(syncml-process-response-buffer (get-buffer "*syncml-response*"))))
+;	  (syncml-process-response)))
+	  ))
+    (progn ;doing normal sync
+      (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Doing normal two-way sync. Preparing header" )
+      (insert (syncml-header))
+      ;; find all records added, modified and deleted in BBDB since last sync time 
+      
+      (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Processing added records." )
+      (let ((bbdb-syncml-added-luids (bbdb-syncml-get-added-records)))
 	(set-buffer (get-buffer-create "*syncml-transmit*"))
-	(erase-buffer)
-	(let ((bbdb-syncml-added-records (bbdb-syncml-get-added-records)))
-		(dolist 
-				(record bbdb-syncml-added-records)
-			(insert (syncml-create-add-command record))
-			;; should create-xxx-commands increase the <CmdID> ?
-			(insert (syncml-header))
-			(syncml-transmit-xml-buffer (get-buffer "*syncml-transmit*"))
-			)))
+	(goto-char (point-max))
+	(bbdb-syncml-debug 1 'bbdb-syncml-synchronzie 
+			   "Got this list of added luids: %S" bbdb-syncml-added-luids)
+	(dolist (luid bbdb-syncml-added-luids)
+	  (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "Processing luid %S " luid)
+	  (let ((temp-add-command (syncml-create-add-command 
+				   luid 
+				   (bbdb-vcard-export-get-record-as-vcard (car (bbdb-syncml-get-record-by-luid luid))))))
+	    (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "<Add>command representation: %S " temp-add-command)
+	    (insert temp-add-command))))     
+      
+      ;; should create-xxx-commands increase the <CmdID> ?     
+      ;; send a sync request for those records. (package #3)
 
+      ;; parse the responses, and write the results back to the BBDB database. (package #4)
+      ;; some of the server's responses requires the client to respond back. (ie: the ADD command from
+      ;; the server should be acknowledged by the MAP command from the client with the LUID assigned. (clients 
+      ;; always assign luid.)
+      
+      ;; finally, update the last sync timestamp in the mapping file,
+      ;; and send a XXX command back to the server to indicate a successful sync (?)
+        
+      )))
+    
 
-	;; send a sync request for those records.
-	;; parse the responses, and write the results back to the BBDB database.
-	;; if the server sent response 508 to the SYNC command, the redo the synchronization init 
-	;; with a slow sync.
-	;; some of the server's responses requires the client to respond back. (ie: the ADD command from
-	;; the server should be replyed by the MAP command from the client with the LUID assigned. (clients 
-	;; always assign luid.)
-
-	;; finally, update the last sync timestamp in the mapping file,
-	;; and send a XXX command back to the server to indicate a successful sync (?)
-	
 
 (defun bbdb-syncml-get-added-records (&optional timestamp)
-	"Returns the LUID of records added since last sync.
+  "Returns the LUID of records added since last sync.
 
 An new/added record is:
 a record without luid
@@ -115,41 +170,83 @@ a record with luid, but without an entry in the mapping file
 is this the wisest way to check?
 
 better for the function to return a list of records, and assign the luids temporary, and save 
-locally only if a succesful sync is made? note: there is returned a <status> command from the server 
-for this"
- 	(bbdb-syncml-debug 'bbdb-syncml-get-added-records "Started")
-	;; ensure that the next luid is up-to-date
-	(bbdb-syncml-validate-luids)
-	(setq bbdb-syncml-next-luid (bbdb-syncml-get-next-luid))
-	;; also ensure that the mapping file lists are up-to-date
-	(bbdb-syncml-read-mapping-file)
-	;; if all is ok, then iterate over all bbdb records, and put the luid of the added ones in a list
-	(let (node-list)
-		(dolist (node (bbdb-records) node-list)
-			(bbdb-syncml-debug 'bbdb-syncml-get-added-records 
-												 "Checking node: %S - %S" 
-												 (bbdb-record-name node) 
-												 (bbdb-record-company node))
-			(if (and (not (null (bbdb-record-getprop node 'luid)))
-							 (member (bbdb-record-getprop node 'luid) (bbdb-syncml-mapping-file-luids)))
-					;; record has a luid and is present in the mapping file. It is not added since last successful sync
-					(bbdb-syncml-debug 'bbdb-syncml-get-added-records
-																		"LUID %S already exists in the mapping file." 
-																		(bbdb-record-getprop node 'luid))
-				;; record is added since last successful sync.
-				;; Create a new luid if none exists, and increment counter.
-				;; The mapping file is updated only after a successful sync, so there is no need for
-				;; this function to delete the luid if syncing failed.
-				(bbdb-syncml-debug 'bbdb-syncml-get-added-records "Node is added since last successful sync.")
-				(if (null (bbdb-record-getprop node 'luid))
-						(progn 
-							(bbdb-syncml-debug 'bbdb-syncml-get-added-records 
-																 "Node doesn't have a luid. Assigning %S" bbdb-syncml-next-luid)
-							(bbdb-record-putprop node 'luid bbdb-syncml-next-luid)
-							(bbdb-syncml-debug 'bbdb-syncml-get-added-records "Saving database...")
-							(bbdb-save-db)))
-				(push bbdb-syncml-next-luid node-list)
-				(bbdb-syncml-increment-luid)))))
+locally only if a succesful sync is made? 
+
+note: there may be returned a <status> command from the server for this.  or we can request it."
+  (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records "Started")
+  ;; ensure that the next luid is up-to-date
+  (bbdb-syncml-validate-luids nil)
+  (setq bbdb-syncml-next-luid (bbdb-syncml-get-next-luid))
+  
+  ;; also ensure that the mapping file lists are up-to-date
+  (setq bbdb-syncml-mapping-luid-list (bbdb-syncml-read-mapping-file))
+  
+  ;; if all is ok, then iterate over all bbdb records, and put the luid of the added ones in the list added-luid-list
+  (let (added-luid-list)
+    (dolist (node (bbdb-records) added-luid-list)
+      (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records 
+			 "Checking record with name and company: %S - %S" 
+			 (bbdb-record-name node) 
+			 (bbdb-record-company node))
+      (if (and (not (null (bbdb-record-getprop node 'luid)))
+	       (member (string-to-number (bbdb-record-getprop node 'luid)) bbdb-syncml-mapping-luid-list))
+	  ;; record has a luid and is present in the mapping file. It is not added since last successful sync
+	  (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records
+			     "LUID %S already exists in the mapping file." 
+			     (bbdb-record-getprop node 'luid))
+	;; record is added since last successful sync.
+	;; Create a new luid if none exists, and increment counter.
+	;; The mapping file is updated only after a successful sync, so there is no need for
+	;; this function to delete the luid if syncing failed.
+	(bbdb-syncml-debug 1 'bbdb-syncml-get-added-records "Record is added since last successful sync. Checking if we must reassign luid.")
+	(if (null (bbdb-record-getprop node 'luid))
+	    (progn 
+	      (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records 
+				 "Record %S doesn't have a luid. Assigning %S" (bbdb-record-name node) bbdb-syncml-next-luid)
+	      (bbdb-record-putprop node 'luid bbdb-syncml-next-luid)
+	      (bbdb-syncml-increment-luid)
+	      (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records "Saving BBDB database...")
+	      (bbdb-save-db)))
+	(bbdb-syncml-debug 1 'bbdb-syncml-get-added-records "Adding luid %S to the list of added luids." (bbdb-record-getprop node 'luid))
+	(push (bbdb-record-getprop node 'luid) added-luid-list)))))
+
+
+
+(defun bbdb-syncml-get-all-records (&optional timestamp)
+  "Returns the LUID of all records. Used when doing slow sync."
+  (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records "Started")
+  ;; ensure that the next luid is up-to-date
+  (bbdb-syncml-validate-luids nil)
+  (setq bbdb-syncml-next-luid (bbdb-syncml-get-next-luid))
+  
+  ;; also ensure that the mapping file lists are up-to-date
+  (setq bbdb-syncml-mapping-luid-list (bbdb-syncml-read-mapping-file))
+  
+  ;; if all is ok, then iterate over all bbdb records, and put all luid's into the list all-luid-list. records lacking luid should be assigned one.
+  (let (all-luid-list)
+    (dolist (node (bbdb-records) all-luid-list)
+      (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records 
+			 "Checking record with name and company: %S - %S" 
+			 (bbdb-record-name node) 
+			 (bbdb-record-company node))
+      (if (not (null (bbdb-record-getprop node 'luid))) ;; record has a luid.
+	  (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records
+			     "Record already has LUID: %S" (bbdb-record-getprop node 'luid))      
+	;; Create a new luid if none exists, and increment counter.
+	;; The mapping file is updated only after a successful sync, so there is no need for
+	;; this function to delete the luid if syncing failed.
+	(progn 
+	  (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records 
+			     "Record %S doesn't have a luid. Assigning %S" (bbdb-record-name node) bbdb-syncml-next-luid)
+	  (bbdb-record-putprop node 'luid bbdb-syncml-next-luid)
+	  (bbdb-syncml-increment-luid)
+	  (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records "Saving BBDB database...")
+	  (bbdb-save-db)))
+      (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records "Adding luid %S to the list of all luids." (bbdb-record-getprop node 'luid))
+      (push (bbdb-record-getprop node 'luid) all-luid-list))))
+
+
+
 
 (defun bbdb-syncml-get-modified-records (last-timestamp)
 	"Returns the LUID of records modified since last sync.
@@ -161,31 +258,31 @@ if a sync for a particular record was unsuccessful at the last sync event/time? 
 the OK message returned by the server should be used to modify a last timestamp in the mapping file, 
 and this function should use this in some way.
 "
-	(bbdb-syncml-debug 'bbdb-syncml-get-modified-records "Started with timestamp: %S" last-timestamp)
+	(bbdb-syncml-debug 1 'bbdb-syncml-get-modified-records "Started with timestamp: %S" last-timestamp)
 ;; ensure that the next luid is up-to-date
 	(setq bbdb-syncml-next-luid (bbdb-syncml-get-next-luid))
-	(let (node-list)
-		(dolist (node (bbdb-records) node-list)
-			(bbdb-syncml-debug 'bbdb-syncml-get-modified-records 
+	(let (modified-luid-list)
+		(dolist (node (bbdb-records) modified-luid-list)
+			(bbdb-syncml-debug 1 'bbdb-syncml-get-modified-records 
 												 "Checking node: %S - %S" 
 												 (bbdb-record-name node) 
 												 (bbdb-record-company node))
 			(if (null (bbdb-record-getprop node 'luid))
 					;; record does not have a luid. it is added since the TIMESTAMP, it should be 
 					;; triggered in the bbdb-syncml-get-added-records, not in this function.  just debug.
-					(bbdb-syncml-debug 'bbdb-syncml-get-modified-records
+					(bbdb-syncml-debug 1 'bbdb-syncml-get-modified-records
 														 "No LUID for record." )
 				;; record does have a luid. 
 				;; check if it's modified timestamp is newer than the timestamp of the last sync.
 				(let ((record-timestamp (bbdb-record-getprop node 'timestamp))
 							(record-luid (bbdb-record-getprop node 'luid)))
-					(bbdb-syncml-debug 'bbdb-syncml-get-modified-records 
+					(bbdb-syncml-debug 1 'bbdb-syncml-get-modified-records 
 														 "Node has timestamp of %S. %S" record-timestamp last-timestamp)
 					(if (string< record-timestamp last-timestamp)
 							;; not changed since last synctime
-							(bbdb-syncml-debug 'bbdb-syncml-get-modified-records "Record not changed.")
-						(bbdb-syncml-debug 'bbdb-syncml-get-modified-records "Record CHANGED.")
-						(push record-luid node-list)))))))
+							(bbdb-syncml-debug 1 'bbdb-syncml-get-modified-records "Record not changed.")
+						(bbdb-syncml-debug 1 'bbdb-syncml-get-modified-records "Record CHANGED.")
+						(push record-luid modified-luid-list)))))))
 
 
 (defun bbdb-syncml-get-deleted-records ()
@@ -210,12 +307,12 @@ state of the bbdb-database at the time of last sync."
 
 (defun bbdb-syncml-get-last-sync () 
 	"Gets the last sync time from the mapping file"
-	(bbdb-syncml-debug 'bbdb-syncml-get-last-sync "Triggered")
+	(bbdb-syncml-debug 1 'bbdb-syncml-get-last-sync "Triggered")
 	(set-buffer (find-file-noselect bbdb-syncml-mapping-file))
 	(goto-char (point-min))
 	(if (not (re-search-forward ";;; last sync timestamp: \\(.*\\)" nil t))
-			(bbdb-syncml-debug 'bbdb-syncml-get-last-sync "Not found.")
-		(bbdb-syncml-debug 'bbdb-syncml-get-last-sync "Found: %S" (match-string 1))
+			(bbdb-syncml-debug 1 'bbdb-syncml-get-last-sync "Not found.")
+		(bbdb-syncml-debug 1 'bbdb-syncml-get-last-sync "Found: %S" (match-string 1))
 		(match-string 1)))
 
 
@@ -226,12 +323,12 @@ Will not delete LUID notes field from a previuos synchronized dataset."
 	(bbdb-add-new-field 'luid)
 	(bbdb-save-db)
 	(if (file-exists-p bbdb-syncml-mapping-file)
-			(progn (bbdb-syncml-debug 'bbdb-syncml-initialize "Already initalized. Prompt user to re-initialize.")
+			(progn (bbdb-syncml-debug 1 'bbdb-syncml-initialize "Already initalized. Prompt user to re-initialize.")
 						 (if (not (y-or-n-p "You have already initialized this BBDB. Do you want to re-initalize?"))
-								 (progn (bbdb-syncml-debug 'bbdb-syncml-initialize "User requested quit")
+								 (progn (bbdb-syncml-debug 1 'bbdb-syncml-initialize "User requested quit")
 												(error ""))
-							 (bbdb-syncml-debug 'bbdb-syncml-initalize "User requested re-initialization"))))
-  (bbdb-syncml-debug 'bbdb-syncml-initalize "Creating mapping file.")
+							 (bbdb-syncml-debug 1 'bbdb-syncml-initalize "User requested re-initialization"))))
+  (bbdb-syncml-debug 1 'bbdb-syncml-initalize "Creating mapping file.")
 	(set-buffer (find-file-noselect bbdb-syncml-mapping-file))
 	(erase-buffer)
 	(goto-char (point-min))
@@ -244,24 +341,54 @@ Will not delete LUID notes field from a previuos synchronized dataset."
 	(save-buffer)
 	(setq bbdb-syncml-next-luid 1)
 ;	(setq bbdb-syncml-last-sync
-  (bbdb-syncml-debug 'bbdb-syncml-initalize "Assigning LUIDs to entries")
+  (bbdb-syncml-debug 1 'bbdb-syncml-initalize "Assigning LUIDs to entries")
 	(bbdb-syncml-assign-luids)
 	)
 
+;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; functions related to the mapping file
+;;
+;; this includes getting and setting of:
+;; - next luid
+;; - last sync timestamp (?)
+;; - list of succesful luids in last sync
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;
+
+
 (defun bbdb-syncml-open-mapping-file ()
 	"Opens the mapping file and sets next LUID."
-	(setq bbdb-syncml-mapping buffer (find-file-noselect bbdb-syncml-mapping-file))
+	(setq bbdb-syncml-mapping-buffer (find-file-noselect bbdb-syncml-mapping-file))
 	(set-buffer bbdb-syncml-mapping-buffer)
 	(setq bbdb-syncml-next-luid (bbdb-syncml-get-next-luid)))
+
+(defun bbdb-syncml-read-mapping-file () 
+	"Reads the mapping file, and put the list of successful luids in a list.
+Returns the list."
+	(bbdb-syncml-open-mapping-file)
+	(set-buffer bbdb-syncml-mapping-buffer)
+	(goto-char (point-min))
+	(if (not (re-search-forward ";;; luids: \\(.*\\)" nil t))
+			(progn (bbdb-syncml-debug 1 'bbdb-syncml-read-mapping-file "Not found.")
+						 (error "luids not found in mapping file"))
+		(bbdb-syncml-debug 1 'bbdb-syncml-read-mapping-file "Found: %S" (match-string 1))
+		(car (read-from-string (match-string 1)))))
+
+(defun bbdb-syncml-write-mapping-file (luid-list)
+  "Writes the new LUID-LIST to the mapping file.
+NOTE: should only be called after syncing is finished"
+)
+
 
 (defun bbdb-syncml-get-next-luid ()
 	"Read the value of next LUID from the mapping file."
 	(set-buffer (find-file-noselect bbdb-syncml-mapping-file))
 	(goto-char (point-min))
 	(if (not (re-search-forward ";;; next LUID: \\(.*\\)" nil t))
-			(progn (bbdb-syncml-debug 'bbdb-syncml-get-next-luid "Not found.")
+			(progn (bbdb-syncml-debug 1 'bbdb-syncml-get-next-luid "Not found.")
 						 (error "next luid not found in file"))
-		(bbdb-syncml-debug 'bbdb-syncml-get-next-luid "Found: %S" (match-string 1))
+		(bbdb-syncml-debug 1 'bbdb-syncml-get-next-luid "Found: %S" (match-string 1))
 		(match-string 1)))
 
 (defun bbdb-syncml-update-next-luid ()
@@ -271,52 +398,60 @@ Will not delete LUID notes field from a previuos synchronized dataset."
 (defun bbdb-syncml-increment-luid ()
 	"Increments the current luid by one, and stores the new value in the mapping file, in the bbdb-syncml-next-luid variable, and returns the new value."
 	(bbdb-syncml-update-next-luid)
-	(bbdb-syncml-debug 'bbdb-syncml-increment-luid "Started. Current luid is %S" bbdb-syncml-next-luid)
+	(bbdb-syncml-debug 1 'bbdb-syncml-increment-luid "Started. Current luid is %S" bbdb-syncml-next-luid)
 	(set-buffer (find-file-noselect bbdb-syncml-mapping-file))
 	(goto-char (point-min))
 	(if (not (re-search-forward ";;; next LUID: " nil t))
-			(progn (bbdb-syncml-debug 'bbdb-syncml-increment-luid "Unable to find next-luid position in mapping file.")
+			(progn (bbdb-syncml-debug 1 'bbdb-syncml-increment-luid "Unable to find next-luid position in mapping file.")
 						 (error "unable to find next-luid posistion in file!"))
 		(kill-region  (point) (line-end-position))
 		(setq bbdb-syncml-next-luid (number-to-string (+ (string-to-number bbdb-syncml-next-luid) 
 																										 1)))
 		(insert bbdb-syncml-next-luid)
 		(save-buffer)
-		(bbdb-syncml-debug 'bbdb-syncml-increment-luid "New luid: %S" bbdb-syncml-next-luid)))
+		(bbdb-syncml-debug 1 'bbdb-syncml-increment-luid "New luid: %S" bbdb-syncml-next-luid)))
 
 (defun bbdb-syncml-set-next-luid (new-value) 
 	"Sets the variable for next luid, and updates the mapping file.
 Should normally never be called, unless the mapping is out of sync"
-	(bbdb-syncml-debug 'bbdb-sycnml-set-next-luid "Called with new value %S" new-value)
+	(bbdb-syncml-debug 1 'bbdb-sycnml-set-next-luid "Called with new value %S" new-value)
 	(setq bbdb-syncml-next-luid  new-value)
 	(set-buffer (find-file-noselect bbdb-syncml-mapping-file))
 	(goto-char (point-min))
 	(if (not (re-search-forward ";;; next LUID: " nil t)) 
-			(progn (bbdb-syncml-debug 'bbdb-syncml-set-next-luid "Unable to find next-luid position in mapping file.")
+			(progn (bbdb-syncml-debug 1 'bbdb-syncml-set-next-luid "Unable to find next-luid position in mapping file.")
 						 (error "unable to find next-luid posistion in file!"))
 		(kill-region  (point) (line-end-position))
 		(insert (number-to-string bbdb-syncml-next-luid))
 		(save-buffer)
-		(bbdb-syncml-debug 'bbdb-syncml-set-next-luid "New luid: %S" bbdb-syncml-next-luid)))
+		(bbdb-syncml-debug 1 'bbdb-syncml-set-next-luid "New luid: %S" bbdb-syncml-next-luid)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; functions related to LUIDs in the bbdb file
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 
 (defun bbdb-syncml-assign-luids ()
 	"Reads all records in the BBDB database, and assigns LUIDs to those not having one."
 ;; first, validate that there are no errorous luids in the database
-	(bbdb-syncml-debug 'bbdb-syncml-assign-luids "Triggered. Proceeding with validate")
+	(bbdb-syncml-debug 1 'bbdb-syncml-assign-luids "Triggered. Proceeding with validate")
 	(bbdb-syncml-validate-luids 't)
 ;; ensure that the bbdb-syncml-next-luid is up-to-date
 	(setq bbdb-syncml-next-luid (bbdb-syncml-get-next-luid))
 	(dolist (node (bbdb-records) nil)
-		(bbdb-syncml-debug 'bbdb-syncml-assign-luids "Validating node: %S" node)
+		(bbdb-syncml-debug 1 'bbdb-syncml-assign-luids "Validating node: %S" node)
 		(if (not (null (bbdb-record-getprop node 'luid)))
 				;; record has a luid. just debug.
-				(bbdb-syncml-debug 'bbdb-syncml-assign-luids 
+				(bbdb-syncml-debug 1 'bbdb-syncml-assign-luids 
 													 "Found LUID for %S: %S " 
 													 (bbdb-record-name node) 
 													 (bbdb-record-getprop node 'LUID))
 			;; record does not have a luid. Create one, and increment counter.
-			(bbdb-syncml-debug 'bbdb-syncml-assign-luids "Node unhas luid. assigning %S." bbdb-syncml-next-luid)
+			(bbdb-syncml-debug 1 'bbdb-syncml-assign-luids "Node unhas luid. assigning %S." bbdb-syncml-next-luid)
 			(bbdb-record-putprop node 'luid bbdb-syncml-next-luid)
 			(bbdb-save-db)
 			(bbdb-syncml-increment-luid)))
@@ -327,23 +462,27 @@ Should normally never be called, unless the mapping is out of sync"
 (defun bbdb-syncml-validate-luids (reassign)
 	"Reads all BBDB records and checks if any LUID is above the bbdb-syncml-next-luid.
 If REASSIGN is true, then the bbdb-syncml-next-luid is updated to the higest value in the
-dataset + 1."
-	(bbdb-syncml-debug 'bbdb-syncml-validate-luids "Triggered. (bbdb-records) has %S records." (length (bbdb-records)))
-	(bbdb-syncml-debug 'bbdb-syncml-validate-luids "Value of next luid: %S" bbdb-syncml-next-luid)
+dataset + 1.
+If REASSIGN is false, the function is aborted."
+	(bbdb-syncml-debug 1 'bbdb-syncml-validate-luids "Triggered. (bbdb-records) has %S records." (length (bbdb-records)))
+	;; should make sure we are comparing against the most current next-luid.
+	(setq bbdb-syncml-next-luid (bbdb-syncml-get-next-luid))
+	(bbdb-syncml-debug 1 'bbdb-syncml-validate-luids "Value of next luid: %S" bbdb-syncml-next-luid)
+
 	(dolist (node (bbdb-records) nil)
-		(bbdb-syncml-debug 'bbdb-syncml-validate-luids "examining a node: %S" node)
+		(bbdb-syncml-debug 2 'bbdb-syncml-validate-luids "examining a node: %S" node)
 		(if (null (bbdb-record-getprop node 'luid))
 				;; record does not have a luid. All is well.
-				(bbdb-syncml-debug 'bbdb-syncml-validate-luids "node doesn't have a LUID. all is well")
+				(bbdb-syncml-debug 1 'bbdb-syncml-validate-luids "node doesn't have a LUID. all is well")
 			;; record has a luid. message it for debug.
-			(bbdb-syncml-debug 'bbdb-syncml-validate-luids "Validating BBDB. Found LUID for %S: %S " (bbdb-record-name node) (bbdb-record-getprop node 'luid))
-			(if (>= (string-to-number (bbdb-record-getprop node 'luid)) bbdb-syncml-next-luid)
-					(progn (bbdb-syncml-debug 'bbdb-syncml-validate-luids "ERROR: Luid %S is greater than value of next luid %S." (bbdb-record-getprop node 'luid) bbdb-syncml-next-luid)
+			(bbdb-syncml-debug 1 'bbdb-syncml-validate-luids "Validating BBDB. Found LUID for %S: %S " (bbdb-record-name node) (bbdb-record-getprop node 'luid))
+			(if (>= (string-to-number (bbdb-record-getprop node 'luid)) (string-to-number bbdb-syncml-next-luid))
+					(progn (bbdb-syncml-debug 1 'bbdb-syncml-validate-luids "ERROR: Luid %S is greater than value of next luid %S." (bbdb-record-getprop node 'luid) bbdb-syncml-next-luid)
 								 (if reassign
-										 (progn (bbdb-syncml-debug 'bbdb-syncml-validate-luids "Reassigning luids")
+										 (progn (bbdb-syncml-debug 1 'bbdb-syncml-validate-luids "Reassigning luids")
 														(bbdb-syncml-set-next-luid 
 														 (+ (string-to-number (bbdb-record-getprop node 'luid)) 1)))
-									 (bbdb-syncml-debug 'bbdb-syncml-validate-luids "No reassigning luids.  Aborting...")
+									 (bbdb-syncml-debug 1 'bbdb-syncml-validate-luids "No reassigning luids.  Aborting...")
 									 (error "LUID greater than next value")))))))
 
 (defun bbdb-syncml-create-luid-hook ()
@@ -351,5 +490,16 @@ dataset + 1."
 The value of LUID to assign to the new record is picked from the 
 bbdb-syncml-mapping-file"
 	())
+
+;;;;;;;;;;;;;;;;;;;
+;
+; working directly towards the bbdb_
+;
+;;;;;;;;;;;;;;;;;;
+(defun bbdb-syncml-get-record-by-luid (luid)
+	"Return the record with the given LUID"
+	(let ((notes (cons (intern "luid") (concat "^" luid "$"))))
+		(bbdb-search (bbdb-records) nil nil nil notes)))
+
 
 (provide 'bbdb-syncml)

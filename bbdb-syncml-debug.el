@@ -1,5 +1,5 @@
 ;; bbdb-syncml-debug.el: This files contain debug utilities for the bbdb-syncml package.
-;; $Id: bbdb-syncml-debug.el,v 1.1 2003/02/06 14:14:22 joergenb Exp $
+;; $Id: bbdb-syncml-debug.el,v 1.2 2003/10/13 19:27:48 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -27,8 +27,14 @@
 ;; Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ;; Boston, MA 02111-1307, USA.
 
-;; Commentary: This was mostly taken from the URL package.
+;; Commentary: This was mostly copied from the URL package.
 
+
+(defcustom bbdb-syncml-debug-level 0
+	"*The debug level to use.  When debug level is set to an INTEGER,
+all debug messages <= INTEGER will be printed.  
+
+Thus, the higher the debug level, the more garbage you'll get :)")
 
 (defcustom bbdb-syncml-debug nil
   "*What types of debug messages from the BBDB-SYNCML library to show.
@@ -48,16 +54,18 @@ If a list, it is a list of the types of messages to be logged."
   :group 'bbdb-syncml-hairy)
 
 ;;;###autoload
-(defun bbdb-syncml-debug (tag &rest args)
+(defun bbdb-syncml-debug (level tag &rest args)
+"Prints a ARGS debug message to the debug buffer with a given LEVEL."
   (if quit-flag
       (error "Interrupted!"))
-  (if (or (eq bbdb-syncml-debug t)
-					(numberp bbdb-syncml-debug)
-					(and (listp bbdb-syncml-debug) (memq tag bbdb-syncml-debug)))
-      (save-excursion
+  (if (and (<= level bbdb-syncml-debug-level)
+					 (or (eq bbdb-syncml-debug t)
+							 (numberp bbdb-syncml-debug)
+							 (and (listp bbdb-syncml-debug) (memq tag bbdb-syncml-debug))))
+			(save-excursion				
 				(set-buffer (get-buffer-create "*BBDB-SYNCML-DEBUG*"))
 				(goto-char (point-max))
-				(insert (current-time-string) ": " (symbol-name tag) " -> " (apply 'format args) "\n")
+				(insert (current-time-string) ": " (symbol-name tag) " [" (number-to-string level) "] -> " (apply 'format args) "\n")
 				(if (numberp bbdb-syncml-debug)
 						(apply 'message args)))))
 
