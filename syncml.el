@@ -1,5 +1,5 @@
 ;;; syncml.el -- An elisp implementation of a SyncML client.
-;; $Id: syncml.el,v 1.1 2003/02/06 14:14:22 joergenb Exp $
+;; $Id: syncml.el,v 1.2 2003/03/29 00:09:40 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -50,9 +50,9 @@
 (setq syncml-debug t)
 (setq url-debug t)
 
-(defvar syncml-host "http://80.203.35.204:8000/sync4j/sync")
+(defvar syncml-host "http://80.203.46.199:8000/sync4j/sync")
 
-(defvar syncml-target-locuri "80.203.35.204"
+(defvar syncml-target-locuri "80.203.46.199"
   "*The target host URI.")
 
 (defvar syncml-source-locuri "myBBDBdatabase"
