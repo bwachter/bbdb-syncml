@@ -1,6 +1,6 @@
 ;; dom-loadsave.el -- An minimalist implementation of the DOM Level 3 
 ;;                    Load and Save extension.
-;; $Id: dom-loadsave.el,v 1.2 2003/10/13 19:27:48 joergenb Exp $
+;; $Id: dom-loadsave.el,v 1.3 2003/10/27 19:51:35 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -39,9 +39,9 @@
 (defconst dom-loadsave-indent 2)
 
 (defun dom-node-write-to-string (node &optional base-indent-level)
-  (setq dom-loadsave-indent-level 0)
+  (setq dom-loadsave-indent-level 1)
   (let* ((dummy (dom-node-write-to-string-inner node)))
-    (setq dom-loadsave-indent-level 0)
+    (setq dom-loadsave-indent-level 1)
     dummy))
 
 (defun dom-node-write-to-string-inner (node)
@@ -99,10 +99,12 @@ child nodes."
      (if (dom-element-p (dom-node-first-child node))
 	 (progn
 ;;	   (setq dom-loadsave-indent-level (1- dom-loadsave-indent-level))
-	   (make-string (* (- dom-loadsave-indent-level 1) dom-loadsave-indent) (string-to-char " "))))
+	   (make-string (* (1- dom-loadsave-indent-level) dom-loadsave-indent) (string-to-char " "))))
      "</" 
      (progn 
-       (setq dom-loadsave-indent-level (1- dom-loadsave-indent-level))
+       (if (>= dom-loadsave-indent-level 1)
+	   (setq dom-loadsave-indent-level (1- dom-loadsave-indent-level))
+	 (setq dom-loadsave 1))
        (if (symbolp (dom-node-name node))
 	   (symbol-name (dom-node-name node))
 	 (dom-node-name node)))

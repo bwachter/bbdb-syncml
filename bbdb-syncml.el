@@ -1,5 +1,5 @@
 ;;; bbdb-syncml.el -- A SyncML client for the BBDB database.
-;; $Id: bbdb-syncml.el,v 1.3 2003/10/13 19:27:48 joergenb Exp $
+;; $Id: bbdb-syncml.el,v 1.4 2003/10/27 19:51:35 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -51,81 +51,144 @@ this MUST be unique over the lifespan of a BBDB database")
 (defvar bbdb-syncml-last-sync-timestamp nil
   "*The timestamp at the previous successful synchronzation")
 
+
+;; bbdb-syncml-synchronize
+;;
+;; this is the main function of the bbdb-syncml package.  most of the logic is here.
+;;
 (defun bbdb-syncml-synchronize () 
   "Synchronizes the bbdb database with the SyncML server.
 
 See chapter 5 in the 'SyncML Sync Protocol' document available from www.syncml.org"
   
-  ;;do some initialization
+  ;; do some initialization
   (bbdb-syncml-debug 1 'bbdb-syncml-synchronzie "STARTING SYNCHRONIZATION" )
   
-  ;;check last sync time -get from .bbdb.syncml
+  ;; check last sync time -get from .bbdb.syncml
   (setq bbdb-syncml-last-sync (bbdb-syncml-get-last-sync))
   
   ;; send initialization package to server.
   ;; the syncml-init function will break if an error occurred.
   (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Initalizing" )
   (syncml-init)
-  ;; if the server sent response 508 to the SYNC command, then syncing should be slow.  
-  ;; syncml-init sets the global variable SYNCML-DOING-SLOW-SYNC to 't in this case.
 
-  (set-buffer (get-buffer-create "*syncml-transmit*"))
-  (erase-buffer)
-  
+  ;; if the server sent response 508 to the SYNC command, then syncing should be slow.  
+  ;; syncml-init sets the global variable SYNCML-DOING-SLOW-SYNC to 't in this case.  
   (if 'syncml-doing-slow-sync
+      
       ;; Slow sync triggered.  We just send <add> commands for all records in the bbdb database.      
       (progn
 	(bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Slow sync forced by server.")
-	(let* ((syncmldoc (syncml-create-syncml-document))
-	       (syncmlnode (dom-document-element syncmldoc))
+	;; first, create all node which we later need to reference (either to add children to or ?)
+	(let* ((syncml-transmit-doc (syncml-create-syncml-document))
+	       (syncmlnode (dom-document-element syncml-transmit-doc))
+	       ;; the <SyncHdr>
 	       (synchdrnode (syncml-create-synchdr-command
-			     syncmldoc 
-			     (syncml-create-target-command syncmldoc syncml-target-locuri)
-			     (syncml-create-source-command syncmldoc syncml-source-locuri)))
-	       (syncbodynode (syncml-create-syncbody-command syncmldoc))
-	       (bbdb-syncml-added-luids (bbdb-syncml-get-all-records)))
+			     syncml-transmit-doc 
+			     (syncml-create-target-command syncml-transmit-doc syncml-target-locuri)
+			     (syncml-create-source-command syncml-transmit-doc syncml-source-locuri)))
+	       ;; the <SyncBody>
+	       (syncbodynode (syncml-create-syncbody-command syncml-transmit-doc))
+	       ;; the <Status> in reponse to the synchdr
+	       (status-synchdr-node (syncml-create-status-command 
+				     syncml-transmit-doc
+				     (dom-node-text-content (car (xpath-resolve (dom-document-element syncml-response-doc) 
+										"descendant::MsgID")))
+				     "0"
+				     "SyncHdr"
+				     (syncml-create-data-command syncml-transmit-doc 
+								 (dom-node-text-content (car (xpath-resolve 
+											      (dom-document-element syncml-response-doc) 
+											      "descendant::Status/child::Data[position()=\"1\"]"))))
+				     (syncml-create-target-command syncml-transmit-doc syncml-target-locuri)
+				     (syncml-create-source-command syncml-transmit-doc syncml-source-locuri)	  
+				     ))
+	       ;; the <Status> in response to the <Alert>
+	       
+	       ;; the <Sync> node
+	       (syncnode (syncml-create-sync-command syncml-transmit-doc))
+	       ;; a list of which luids shall be added
+	       (bbdb-syncml-added-luids (bbdb-syncml-get-all-records))
+	       )
+
+	  (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Done creating base DOM nodes.")
+	  ;; Add the <SyncHdr> and <SyncBody> nodes to the <SyncML> node.
 	  (dom-node-append-child syncmlnode synchdrnode)
-	  ;; send a status command in response for the SyncHdr from server
-	  ;; send a status command in response for the Alert from server.
-	  (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Processing all records." )
-	  (set-buffer (get-buffer-create "*syncml-transmit*"))
-	  (goto-char (point-max))
-	  (bbdb-syncml-debug 1 'bbdb-syncml-synchronzie 
-			     "Got this list of added luids: %S" bbdb-syncml-added-luids)
+	  (dom-node-append-child syncmlnode syncbodynode)
+
+	  ;; add the <Status> command in response for the <SyncHdr> from server, as first child to the <SyncBody>
+	  (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "Creating <Status> command")
+	  (dom-node-append-child syncbodynode status-synchdr-node)
+				  
+	  ;; add the <Status> command in response for the <Alert> from server, as second child to the <SyncBody>
+	  ;; (dom-node-append-child syncbodynode status-alert-node)
+
+	  ;; create a <Sync> command to hold all the <Add> commands.
+	  (dom-node-append-child syncbodynode syncnode)
+
+	  ;; The header and status commands are finished.  
+	  (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Base DOM tree prepared.")
+	  (bbdb-syncml-debug 2 'bbdb-syncml-synchronize (dom-node-write-to-string syncml-transmit-doc 1))
+
+	  ;; go through all the bbdb records, and add them to the <Sync> element.
+	  (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Processing all bbdb records." )
 	  (dolist (luid bbdb-syncml-added-luids)
 	    (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "Processing luid %S " luid)
-	    (let ((temp-add-command (syncml-create-add-command 
-				     luid 
-				     (bbdb-vcard-export-get-record-as-vcard 
-				      (car (bbdb-syncml-get-record-by-luid luid))))))
-	      (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "<Add>command representation: %S " temp-add-command)
-	      (insert temp-add-command))))
-	(insert "<Final/></SyncBody><SyncML>")
-	(let ((url-working-buffer (get-buffer-create
-				   (syncml-get-temp-buffer-name)))
-	      (url-request-method "POST")
-	      (url-package-name "Lispmeralda-Emacs")
-	      (url-package-version "1.0")
-	      (url-request-data (concat "<?xml version=\"1.0\"?>\n" (buffer-string)))
-	      (url-request-extra-headers (cons
-					  (cons  "Content-Type" "application/vnd.syncml+xml")
-					  url-request-extra-headers)))
+	    (let ((temp-add-node
+		   (syncml-create-add-command syncml-transmit-doc 
+					      (syncml-create-item-command syncml-transmit-doc
+									  nil
+									  (syncml-create-source-command syncml-transmit-doc luid)
+									  (syncml-create-data-command syncml-transmit-doc (bbdb-vcard-export-get-record-as-vcard
+															   (car (bbdb-syncml-get-record-by-luid luid))))))))
+;	      (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "<Add>command representation: %S " temp-add-node)
+	      (dom-node-append-child syncnode temp-add-node)))
 	  
-	  ;;		(set-buffer url-working-buffer)
-	  (syncml-debug 'syncml-post "Posting:\n %S" url-request-data) 
-	  (kill-buffer (get-buffer "*syncml-response*"))
-	  (set-buffer (get-buffer-create "*syncml-response*"))
+	  ;; add a <Final> node
+	  (dom-node-append-child syncnode (syncml-create-final-command syncml-transmit-doc))
 	  
-	  ;; this actually sends the init command to the server
-	  (insert-buffer (url-retrieve-synchronously syncml-host))
+	  ;; finished constructing the DOM tree.
+	  (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Finished construction DOM tree. Preparing to send to server")
+	  (bbdb-syncml-debug 2 'bbdb-syncml-synchronize (dom-node-write-to-string syncml-transmit-doc))
 	  
-	  ;; TODO: need to check the HTTP response code here!! 
-	  (syncml-debug 'syncml-post "Got:\n %S" (buffer-string))
+	  (set-buffer (get-buffer-create syncml-transmit-buffername))
+	  (erase-buffer)	  
+
+	  (insert (dom-node-write-to-string syncml-transmit-doc))
+;;	  (insert "\n")
+;;	  (goto-char (point-max))
 	  
+	  (let ((url-working-buffer (get-buffer-create
+				     (syncml-get-temp-buffer-name)))
+		(url-request-method "POST")
+		(url-package-name "Lispmeralda-Emacs")
+		(url-package-version "1.0")
+		(url-http-transfer-encoding "iso-8859-1")
+		(url-request-data (concat "<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>\n" (buffer-string)))
+		(url-request-extra-headers (cons
+					    (cons  "Content-Type" "application/vnd.syncml+xml")
+					    url-request-extra-headers)))
+	    
+	    ;;		(set-buffer url-working-buffer)
+	    (syncml-debug 'syncml-post "Posting:\n %S" url-request-data) 
+	    (kill-buffer (get-buffer "*syncml-response*"))
+	    (set-buffer (get-buffer-create "*syncml-response*"))
+	    
+	    ;; this actually sends the init command to the server
+	    (insert-buffer (url-retrieve-synchronously syncml-host))
+	    
+	    ;; TODO: need to check the HTTP response code here!! 
+	    (syncml-debug 'syncml-post "Got:\n %S" (buffer-string))
+	    
 					;		(syncml-process-response-buffer (get-buffer "*syncml-response*"))))
-;	  (syncml-process-response)))
-	  ))
-    (progn ;doing normal sync
+					;	  (syncml-process-response)))
+	    ))
+	;; debug to string here!!!!
+	)  ;end of slow sync
+    ;;
+    ;; normal fast sync
+    ;; 
+    (progn 
       (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Doing normal two-way sync. Preparing header" )
       (insert (syncml-header))
       ;; find all records added, modified and deleted in BBDB since last sync time 
@@ -141,7 +204,7 @@ See chapter 5 in the 'SyncML Sync Protocol' document available from www.syncml.o
 	  (let ((temp-add-command (syncml-create-add-command 
 				   luid 
 				   (bbdb-vcard-export-get-record-as-vcard (car (bbdb-syncml-get-record-by-luid luid))))))
-	    (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "<Add>command representation: %S " temp-add-command)
+;	    (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "<Add> command representation: %S " (dom-node-write-to-string temp-add-command)
 	    (insert temp-add-command))))     
       
       ;; should create-xxx-commands increase the <CmdID> ?     
@@ -154,7 +217,7 @@ See chapter 5 in the 'SyncML Sync Protocol' document available from www.syncml.o
       
       ;; finally, update the last sync timestamp in the mapping file,
       ;; and send a XXX command back to the server to indicate a successful sync (?)
-        
+      
       )))
     
 

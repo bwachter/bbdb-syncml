@@ -1,5 +1,5 @@
 ;;; syncml-commands.el -- An elisp implementation of a SyncML client. This file contains the syncml commands
-;; $Id: syncml-commands.el,v 1.1 2003/10/13 19:27:48 joergenb Exp $
+;; $Id: syncml-commands.el,v 1.2 2003/10/27 19:51:35 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -56,6 +56,8 @@
 
 ;; syncml-create-synchdr-command
 (defun syncml-create-synchdr-command (ownerdoc targetnode sourcenode &optional crednode metanode)
+  "Returns a new <SyncHdr> DOM node. MsgID is incremented."
+  (syncml-increase-msgid)
   (let* ((synchdrnode (dom-document-create-element ownerdoc "SyncHdr"))
 	 )
     (dom-node-append-child synchdrnode (syncml-create-verdtd-command ownerdoc))
@@ -75,7 +77,7 @@
   "*Creates a DOM element node corresponding to an empty <SyncBody> command. This node must be filled with children.
 
 XML declaration: ((Alert | Atomic | Copy | Exec | Get | Map | Put | Results | Search | Sequence | Status | Sync | Add | Replace | Delete)+, Final?)"
-  (let* ((syncbodynode (dom-document-create-element "SyncBody"))
+  (let* ((syncbodynode (dom-document-create-element ownerdoc "SyncBody"))
 	 )
     syncbodynode))
     
@@ -126,10 +128,14 @@ METADATA is either a string or a dom-node. if a dom-node, it's owner-document sh
 (defun syncml-create-item-command (ownerdoc &optional targetnode sourcenode metanode datanode)
   "*Returns a DOM element node corresponding to a SyncML <Item> command"
   (let* ((itemnode (dom-document-create-element ownerdoc "Item")))
-    (if (not (null targetnode))	dom-node-append-child itemnode targetnode)
-    (if (not (null sourcenode)) dom-node-append-child itemnode sourcenode)
-    (if (not (null metanode)) dom-node-append-child itemnode metanode)
-    (if (not (null datanode)) dom-node-append-child itemnode datanode)
+    (if (not (null targetnode))	
+	(dom-node-append-child itemnode targetnode))
+    (if (not (null sourcenode)) 
+	(dom-node-append-child itemnode sourcenode))
+    (if (not (null metanode)) 
+	(dom-node-append-child itemnode metanode))
+    (if (not (null datanode)) 
+	(dom-node-append-child itemnode datanode))
     itemnode))
 
 
@@ -177,6 +183,29 @@ XML declaration: (Meta?, Data)"
     crednode))
 
 
+;; syncml-create-sync-command ()
+;; 
+;; Returns a DOM noe corresponding to the SyncML <Sync> command.
+;; XML definition: CmdID, NoResp?, Cred?, Target?, Source?, Meta?, NumberOfChanges?, (Add | Atomic | Copy | Delete | Replace | Sequence)*
+(defun syncml-create-sync-command (ownerdoc &optional noresp crednode targetnode  sourcenode metanode )
+  "Returns a string with the <Sync> command 
+
+XML definition: CmdID, NoResp?, Cred?, Target?, Source?, Meta?, NumberOfChanges?, (Add | Atomic | Copy | Delete | Replace | Sequence)*"
+
+  (let* ((syncnode (dom-document-create-element ownerdoc "Sync"))) 
+    (dom-node-append-child syncnode (syncml-create-cmdid-command ownerdoc)) 
+    (if (not (null noresp))
+	(dom-node-append-child syncnode (dom-document-create-element ownerdoc "NoResp")))
+    (if (not (null crednode))
+	(dom-node-append-child syncnode crednode))
+    (if (not (null targetnode))
+	(dom-node-append-child syncnode targetnode))
+    (if (not (null sourcenode))
+	(dom-node-append-child syncnode sourceode))
+    (if (not (null metanode))
+	(dom-node-append-child syncnode metanode))
+    syncnode))
+
 ;; syncml-create-add-command ()
 ;; 
 ;; Returns a DOM noe corresponding to the SyncML <Add> command.
@@ -186,22 +215,50 @@ XML declaration: (Meta?, Data)"
 XML definition: 
 CmdID, NoResp?, Cred?, Meta?, Item+)"
   (let* ((addnode (dom-document-create-element ownerdoc "Add")))
-    (dom-node-append-child addnode (syncml-create-cmdid-command)) 
-    (if (not (null (noresp)))
+    (dom-node-append-child addnode (syncml-create-cmdid-command ownerdoc)) 
+    (if (not (null noresp))
 	(dom-node-append-child addnode (dom-document-create-element ownerdoc "NoResp")))
-    (if (not (null (crednode)))
+    (if (not (null crednode))
 	(dom-node-append-child addnode crednode))
-    (if (not (null (metanode)))
+    (if (not (null metanode))
 	(dom-node-append-child addnode metanode))
     (dom-node-append-child addnode itemnode)
     addnode))
     
 
+
+;; syncml-create-status-command ()
+;; 
+;; Returns a DOM noe corresponding to the SyncML <Status> command.
+;; XML definition: CmdID, NoResp?, Cred?, Meta?, Item+)
+(defun syncml-create-status-command (ownerdoc msgref cmdref cmd datanode &optional targetrefnode sourcerefnode itemnode)
+  "Returns a string with the <Status> command 
+XML definition: 
+CmdID, MsgRef, CmdRef, Cmd, TargetRef*, SourceRef*, Cred?, Chal?, Data, Item*)"
+  (let* ((statusnode (dom-document-create-element ownerdoc "Status"))
+	 (msgrefnode (syncml-create-msgref-command ownerdoc msgref))
+	 (cmdrefnode (syncml-create-cmdref-command ownerdoc cmdref))
+	 (cmdnode    (syncml-create-cmd-command    ownerdoc cmd)))
+    (dom-node-append-child statusnode (syncml-create-cmdid-command ownerdoc)) 
+    (dom-node-append-child statusnode msgrefnode)
+    (dom-node-append-child statusnode cmdrefnode)
+    (dom-node-append-child statusnode cmdnode)
+    (if (not (null targetrefnode))
+	(dom-node-append-child statusnode targetrefnode))
+    (if (not (null sourcerefnode))
+	(dom-node-append-child statusnode sourcerefnode))
+    (dom-node-append-child statusnode datanode)
+    (if (not (null itemnode))
+	(dom-node-append-child statusnode itemnode))
+    statusnode))
+  
+
+
 ;; syncml-create-cmdid-command
 ;;
 (defun syncml-create-cmdid-command (ownerdoc)
   "Increments SYNCML-CURRENT-CMDID and returns a <CmdID> node."
-  (setq syncml-current-cmdid (+ syncml-current-cmdid 1))
+  (syncml-increase-cmdid)
   (let* ((cmdidnode (dom-document-create-element ownerdoc "CmdID")))
     (dom-node-append-child cmdidnode (dom-document-create-text-node ownerdoc syncml-current-cmdid))
     cmdidnode))
@@ -222,6 +279,38 @@ CmdID, NoResp?, Cred?, Meta?, Item+)"
   (let* ((msgidnode (dom-document-create-element ownerdoc "MsgID")))
     (dom-node-append-child msgidnode (dom-document-create-text-node ownerdoc syncml-current-msgid))
     msgidnode))
+
+;; syncml-create-cmd-command
+;;
+(defun syncml-create-cmd-command (ownerdoc cmd)
+  "Returns a <Cmd> node. "
+  (let* ((cmdnode (dom-document-create-element ownerdoc "Cmd")))
+    (dom-node-append-child cmdnode (dom-document-create-text-node ownerdoc cmd))
+    cmdnode))
+
+;; syncml-create-final-command
+;;
+(defun syncml-create-final-command (ownerdoc)
+  "Returns a <Final> node. "
+  (let* ((finalnode (dom-document-create-element ownerdoc "Final")))    
+    finalnode))
+
+
+;; syncml-create-cmdref-command
+;;
+(defun syncml-create-cmdref-command (ownerdoc cmdref)
+  "Returns a <CmdRef> node."
+  (let* ((cmdrefnode (dom-document-create-element ownerdoc "CmdRef")))
+    (dom-node-append-child cmdrefnode (dom-document-create-text-node ownerdoc cmdref))
+    cmdrefnode))
+
+;; syncml-create-msgref-command
+;;
+(defun syncml-create-msgref-command (ownerdoc msgref)
+  "Returns a <MsgRef> node. "
+  (let* ((msgrefnode (dom-document-create-element ownerdoc "MsgRef")))
+    (dom-node-append-child msgrefnode (dom-document-create-text-node ownerdoc msgref))
+    msgrefnode))
 
 
 ;; syncml-create-verdtd-command

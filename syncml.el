@@ -1,5 +1,5 @@
 ;;; syncml.el -- An elisp implementation of a SyncML client.
-;; $Id: syncml.el,v 1.3 2003/10/13 19:27:48 joergenb Exp $
+;; $Id: syncml.el,v 1.4 2003/10/27 19:51:35 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -93,7 +93,13 @@ tag in the initialization package.")
 (defvar syncml-previous-timestamp nil
 	"*The timestamp at the previous synchronization.")
 
-(defun syncml-create-sessionid ()
+(defvar syncml-transmit-buffername "*syncml-transmit*"
+  "The name of the buffer containing a syncml-message to transmit to the server")
+
+(defvar syncml-response-buffername "*syncml-response*"
+  "The name of the buffer containing the syncml-message returned from the server")
+
+(defun syncml-create-sessionid () 
   "Sets the variable syncml-current-sessionid to a new session id. 
 
 The session id shall be the same for a whole syncml operation.
@@ -105,13 +111,13 @@ from 1 within each unique session."
 	(syncml-debug 'syncml "Created session id: %S" syncml-current-sessionid))
 
 (defun syncml-increase-msgid (&optional sessionid) 
-	"Increases the MsgID number with 1. CmdID is set to 1 at the same time."
-	(setq syncml-current-msgid (+ syncml-current-msgid 1))
-	(setq syncml-current-cmdid 1))
+  "Increases the MsgID number with 1. CmdID is set to 1 at the same time."
+  (setq syncml-current-msgid (+ syncml-current-msgid 1))
+  (setq syncml-current-cmdid 1))
 
 (defun syncml-increase-cmdid (&optional sessionid)
-	"Increases the CmdID number with 1."
-	(setq syncml-current-msgid (+ syncml-current-msgid 1)))
+  "Increases the CmdID number with 1."
+  (setq syncml-current-cmdid (+ syncml-current-cmdid 1)))
 
 
 (defun syncml-init (&optional slow-sync)
@@ -122,15 +128,15 @@ Returns TRUE if initialization went ok, and we can proceed with syncronization."
   (setq syncml-current-timestamp (format-time-string "%Y%m%dT%H%M%SZ" ))
   (syncml-create-sessionid)
   (setq url-debug 't)
-  (set-buffer (get-buffer-create "*syncml-transfer*"))
+  (set-buffer (get-buffer-create syncml-transmit-buffername))
   (erase-buffer)
-  (insert "<SyncML>")
+  (insert "\n<SyncML>")
   (insert (syncml-header))
   (insert "<SyncBody>")
   (if slow-sync
       (insert (syncml-create-alert-command syncml-alert-slow-sync))
     (insert (syncml-create-alert-command syncml-alert-two-way)))
-  (insert "<Final/></SyncBody>\n</SyncML>")
+  (insert "<Final/></SyncBody>\n</SyncML>\n")
   
   (let ((url-working-buffer (get-buffer-create
 			     (syncml-get-temp-buffer-name)))
@@ -144,8 +150,8 @@ Returns TRUE if initialization went ok, and we can proceed with syncronization."
     
     ;;		(set-buffer url-working-buffer)
     (syncml-debug 'syncml-post "Posting:\n %S" url-request-data) 
-    (kill-buffer (get-buffer "*syncml-response*"))
-    (set-buffer (get-buffer-create "*syncml-response*"))
+    (kill-buffer (get-buffer syncml-response-buffername))
+    (set-buffer (get-buffer-create syncml-response-buffername))
     
     ;; this actually sends the init command to the server
     (insert-buffer (url-retrieve-synchronously syncml-host))
@@ -207,31 +213,31 @@ Item: When specified in an Alert, the element type specifies the
 			 </Item>
     </Alert>"))
 
-(defun syncml-create-status-command (status-command-number &optional target-database source-database prev-timestamp next-timestamp) 
-  "Returns a string with the <Status> command with the given STATUS-COMMAND-NUMBER 
-XML definition: 
-(CmdID, MsgRef, CmdRef, Cmd, TargetRef*, SourceRef*, Cred?, Chal?, Data, Item)jfdls."
- (concat         
-	  "<Status>   
-            <CmdID>" (number-to-string syncml-current-cmdid) "</CmdID> 
-            <MsgRef>" (number-to-string syncml-current-cmdid) "</MsgRef>
-            <CmdRef>" (number-to-string syncml-current-cmdid) "</CmdRef> 
-            <Cmd>" (number-to-string syncml-current-cmdid) "</Cmd>
-            <TargetRef>" (number-to-string syncml-current-cmdid) "</TargetRef>
-            <SourceRef>" (number-to-string syncml-current-cmdid) "</SourceRef>
-            <Cmd>" (number-to-string syncml-current-cmdid) "</Cmd>
-            <Data>" (number-to-string status-command-number) "</Data>
-       <Item>
-          <Target><LocURI>" syncml-target-database "</LocURI></Target>
-				  <Source><LocURI>" syncml-source-database "</LocURI></Source>
-				  <Meta>
-					   <Anchor xmlns=\"syncml:metinf\">
-						   <Last>" syncml-previous-timestamp "</Last>
-						   <Next>" syncml-current-timestamp "</Next>
-					   </Anchor>
-				  </Meta>
-			 </Item>
-    </Status>"))
+;;(defun syncml-create-status-command (status-command-number &optional target-database source-database prev-timestamp next-timestamp) 
+;;  "Returns a string with the <Status> command with the given STATUS-COMMAND-NUMBER 
+;;XML definition: 
+;;(CmdID, MsgRef, CmdRef, Cmd, TargetRef*, SourceRef*, Cred?, Chal?, Data, Item)jfdls."
+;; (concat         
+;;	  "<Status>   
+;;            <CmdID>" (number-to-string syncml-current-cmdid) "</CmdID> 
+;;            <MsgRef>" (number-to-string syncml-current-cmdid) "</MsgRef>
+;;            <CmdRef>" (number-to-string syncml-current-cmdid) "</CmdRef> 
+;;            <Cmd>" (number-to-string syncml-current-cmdid) "</Cmd>
+;;            <TargetRef>" (number-to-string syncml-current-cmdid) "</TargetRef>
+;;            <SourceRef>" (number-to-string syncml-current-cmdid) "</SourceRef>
+;;            <Cmd>" (number-to-string syncml-current-cmdid) "</Cmd>
+;;            <Data>" (number-to-string status-command-number) "</Data>
+;;       <Item>
+ ;;         <Target><LocURI>" syncml-target-database "</LocURI></Target>
+;;				  <Source><LocURI>" syncml-source-database "</LocURI></Source>
+;;				  <Meta>
+;;					   <Anchor xmlns=\"syncml:metinf\">
+;;						   <Last>" syncml-previous-timestamp "</Last>
+;;						   <Next>" syncml-current-timestamp "</Next>
+;;					   </Anchor>
+;;				  </Meta>
+;;			 </Item>
+;;   </Status>"))
 
 
 
@@ -264,7 +270,7 @@ XML definition:
 
 First it checks the header, and then processes each command in the body in turn."
   (syncml-debug 'syncml-process-response "Started")
-  (syncml-process-response-buffer (get-buffer "*syncml-response*"))
+  (syncml-process-response-buffer (get-buffer syncml-response-buffername))
 					;	(syncml-debug 'syncml-process-reponse "Searching for <RespURI> tag")
 					;	(setq syncml-next-respuri 
 					;		  (dom-node-text-content 
@@ -354,12 +360,12 @@ TODO:  how to let this command control program flow ?"
   "Get a working buffer name such as ` *XML-RPC-<i>*' without a live process \
 and empty it"
   (let ((num 1)
-				name buf)
+	name buf)
     (while (progn (setq name (format " *SYNCML-%d*" num)
-												buf (get-buffer name))
-									(and buf (or (get-buffer-process buf)
-															 (save-excursion (set-buffer buf)
-																							 (> (point-max) 1)))))
+			buf (get-buffer name))
+		  (and buf (or (get-buffer-process buf)
+			       (save-excursion (set-buffer buf)
+					       (> (point-max) 1)))))
       (setq num (1+ num)))
     name))
 
