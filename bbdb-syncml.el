@@ -1,5 +1,5 @@
 ;;; bbdb-syncml.el -- A SyncML client for the BBDB database.
-;; $Id: bbdb-syncml.el,v 1.6 2004/01/17 16:30:16 joergenb Exp $
+;; $Id: bbdb-syncml.el,v 1.7 2004/01/25 11:57:14 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -156,8 +156,12 @@ See chapter 5 in the 'SyncML Sync Protocol' document available from www.syncml.o
 									  nil
 									  (syncml-create-source-command syncml-transmit-doc luid)
 									  (syncml-create-data-command syncml-transmit-doc (bbdb-vcard-export-get-record-as-vcard
-															   (car (bbdb-syncml-get-record-by-luid luid))))))))
-					;	      (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "<Add>command representation: %S " temp-add-node)
+															   (car (bbdb-syncml-get-record-by-luid luid)))))
+					      (syncml-create-meta-command syncml-transmit-doc
+									  (syncml-create-metinf-type-command
+									   syncml-transmit-doc
+									   "text/x-vcard")))))
+	      ;;	      (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "<Add>command representation: %S " temp-add-node)
 	      (dom-node-append-child syncnode temp-add-node)))
 	  
 	  ;; add a <Final> node

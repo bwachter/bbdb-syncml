@@ -1,5 +1,5 @@
 ;;; syncml.el -- An elisp implementation of a SyncML client.
-;; $Id: syncml.el,v 1.6 2004/01/17 16:30:16 joergenb Exp $
+;; $Id: syncml.el,v 1.7 2004/01/25 11:57:14 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -157,23 +157,23 @@ The response from the server is stored in the syncml-response-doc variable."
 	     (call-process "curl" nil syncml-response-buffername nil 
 			   "-silent"
 			   "-H"
-			   "Content-Type: application/vnd.syncml+xml"
-			   "-d" 
-			   (concat
-			    "<?xml version='1.0' ?>"
-			    (dom-node-write-to-string doc)
-			    )
+			   "Content-Type: application/vnd.syncml+xml; charset=\"UTF-8\""
+			   "--data-binary" 
+			   (encode-coding-string (concat
+						  "<?xml version='1.0' encoding='UTF-8' ?>"
+						  (dom-node-write-to-string doc))
+						 'utf-8)
 			   syncml-next-respuri))
     (progn (syncml-debug 1 'syncml-send-message-with-curl "Server URL: %s" syncml-host)
 	   (call-process "curl" nil syncml-response-buffername nil 
 			 "-silent"
 			 "-H"
-			 "Content-Type: application/vnd.syncml+xml"
-			 "-d" 
-			 (concat
-			  "<?xml version='1.0' ?>"
-			  (dom-node-write-to-string doc)
-			  )
+			 "Content-Type: application/vnd.syncml+xml; charset=\"UTF-8\""
+			 "--data-binary" 
+			 (encode-coding-string (concat
+						"<?xml version='1.0' encoding='UTF-8' ?>"
+						(dom-node-write-to-string doc))
+					       'utf-8)
 			 syncml-host)))
   
   
@@ -200,8 +200,8 @@ The response from the server is stored in the syncml-response-doc variable."
 	(dom-node-text-content 
 	 (car (xpath-resolve (dom-document-element syncml-response-doc) "descendant::RespURI"))))
   (syncml-debug 1 'syncml-send-message-with-curl "<RespURI> is %S" syncml-next-respuri)
-
-)
+  
+  )
 
 
 
@@ -233,18 +233,56 @@ XML Definition: SyncHdr: (VerDTD, VerProto, SessionID, MsgID, Target, Source, Re
 		       (syncml-create-target-command syncml-transmit-doc syncml-target-database)
 		       (syncml-create-source-command syncml-transmit-doc syncml-source-database)
 		       (syncml-create-meta-command syncml-transmit-doc
-						   (syncml-create-metinf-anchor-command syncml-transmit-doc))))))
-    
+						   (syncml-create-metinf-anchor-command syncml-transmit-doc)))))
+	 (devinf-data-node (syncml-create-data-command
+			    syncml-transmit-doc
+			    (syncml-create-devinf-devinf-command
+			     syncml-transmit-doc
+			     (syncml-create-devinf-datastore-command
+			      syncml-transmit-doc
+			      (syncml-create-devinf-sourceref-command syncml-transmit-doc syncml-source-database)
+			      (syncml-create-devinf-rxpref-command syncml-transmit-doc 
+								   (syncml-create-devinf-cttype-command
+								    syncml-transmit-doc
+								    "text/x-vcard")
+								   (syncml-create-devinf-verct-command
+								    syncml-transmit-doc
+								    "2.1"))
+			      (syncml-create-devinf-txpref-command syncml-transmit-doc 
+								   (syncml-create-devinf-cttype-command
+								    syncml-transmit-doc
+								    "text/x-vcard")
+								   (syncml-create-devinf-verct-command
+								    syncml-transmit-doc
+								     "2.1"))
+			      (syncml-create-devinf-synccap-command 
+			       syncml-transmit-doc
+			       (list
+				(syncml-create-devinf-synctype-command syncml-transmit-doc "1")
+				(syncml-create-devinf-synctype-command syncml-transmit-doc "2")))))))		 
+	 (put-node (syncml-create-put-command
+		    syncml-transmit-doc
+		    (syncml-create-item-command syncml-transmit-doc
+						nil 
+						(syncml-create-source-command syncml-transmit-doc "./devinf11")
+						nil
+						devinf-data-node)		    
+		    (syncml-create-meta-command syncml-transmit-doc
+						(syncml-create-metinf-type-command 
+						 syncml-transmit-doc
+						 "application/cnd.syncml-devinf+xml")))))
+	 
     (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Done creating base DOM nodes.")
     ;; Add the <SyncHdr> and <SyncBody> nodes to the <SyncML> node.
     (dom-node-append-child syncmlnode synchdrnode)
     (dom-node-append-child syncmlnode syncbodynode)
     ;; add the <Alert> command as first child to the <SyncBody>
     (dom-node-append-child syncbodynode alert-node)
+    (dom-node-append-child syncbodynode put-node)
     (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "SyncML init DOM tree prepared.")
     (bbdb-syncml-debug 2 'bbdb-syncml-synchronize (dom-node-write-to-string syncml-transmit-doc 1))
     syncml-transmit-doc))
-
+  
 
 (defun syncml-process-response ()
   "Processes the response from the SyncML server.  

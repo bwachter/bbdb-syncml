@@ -1,5 +1,5 @@
 ;;; syncml-commands.el -- An elisp implementation of a SyncML client. This file contains the syncml commands
-;; $Id: syncml-commands.el,v 1.4 2004/01/17 16:30:16 joergenb Exp $
+;; $Id: syncml-commands.el,v 1.5 2004/01/25 11:57:14 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -123,7 +123,7 @@ METADATA is either a string or a dom-node. if a dom-node, it's owner-document sh
     metanode))
 
 
-;; syncml-create-item-command ()
+;; syncml-create-item-ommand ()
 ;; 
 (defun syncml-create-item-command (ownerdoc &optional targetnode sourcenode metanode datanode)
   "*Returns a DOM element node corresponding to a SyncML <Item> command"
@@ -226,6 +226,26 @@ CmdID, NoResp?, Cred?, Meta?, Item+)"
 	(dom-node-append-child addnode metanode))
     (dom-node-append-child addnode itemnode)
     addnode))
+    
+
+
+;; syncml-create-put-command ()
+;; 
+;; Returns a DOM noe corresponding to the SyncML <Put> command.
+;; XML definition: (CmdID, NoResp?, Lang?, Cred?, Meta?, Item+)
+(defun syncml-create-put-command (ownerdoc itemnode &optional metanode crednode noresp)
+  "Returns a string with the <Put> command 
+XML definition: (CmdID, NoResp?, Lang?, Cred?, Meta?, Item+) "
+  (let* ((putnode (dom-document-create-element ownerdoc "Put")))
+    (dom-node-append-child putnode (syncml-create-cmdid-command ownerdoc)) 
+    (if (not (null noresp))
+	(dom-node-append-child putnode (dom-document-create-element ownerdoc "NoResp")))
+    (if (not (null crednode))
+	(dom-node-append-child putnode crednode))
+    (if (not (null metanode))
+	(dom-node-append-child putnode metanode))
+    (dom-node-append-child putnode itemnode)
+    putnode))
     
 
 
@@ -361,7 +381,7 @@ Item: When specified in an Alert, the element type specifies the
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; SyncML device information commands
+;; SyncML meta information commands
 ;;
 ;; all commands create below will be declared with 'syncml:metinf' as namespace
 ;;
@@ -428,6 +448,157 @@ Example: <Anchor>212<Anchor>   Indicates a successful authentication."
     (dom-node-append-child nextnode (dom-document-create-text-node ownerdoc syncml-current-timestamp))
 
     anchornode))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; SyncML device information commands
+;;
+
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;; syncml-create-devinf-devinf-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <DevInf> command.
+;;
+;; The command will be declared with 'syncml:devinf' as namespace
+;;
+;; XML Declaration: (VerDTD, Man?, Mod?, OEM?, FwV?, SwV?, HwV?, 
+;;                   DevID, DevTyp, UTC?, SupportLargeObjs?, 
+;;                   SupportNumberOfChanges?, DataStore+, CTCap*, Ext*)
+;;
+(defun syncml-create-devinf-devinf-command (ownerdoc datastorenode) 
+  "*Returns a DOM node corresponding to a SyncML <DevInf> command."
+  (let* ((devinfnode (dom-document-create-element ownerdoc "DevInf"))
+	 (devinfattr (dom-document-create-attribute ownerdoc "xmlns")))
+    (setf (dom-attr-value devinfattr) "syncml:devinf"
+	  (dom-node-attributes devinfnode) (list devinfattr))
+    (dom-node-append-child devinfnode datastorenode)
+    devinfnode))
+
+
+;; syncml-create-devinf-datastore-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <DataStore> command.
+;;
+;; XML Declaration: (SourceRef, DisplayName?, MaxGUIDSize?, Rx-Pref, Rx*, Tx-Pref, Tx*, DSMem?, SyncCap)
+(defun syncml-create-devinf-datastore-command (ownerdoc sourcerefnode rxprefnode txprefnode synccapnode) 
+  "*Returns a DOM node corresponding to a SyncML <DataStore> command."
+  (let* ((datastorenode (dom-document-create-element ownerdoc "DataStore")))
+    (dom-node-append-child datastorenode sourcerefnode)
+    (dom-node-append-child datastorenode rxprefnode)
+    (dom-node-append-child datastorenode txprefnode)
+    (dom-node-append-child datastorenode synccapnode)
+    datastorenode))
+
+
+;; syncml-create-devinf-rxpref-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <Rx-Pref> command.
+;;
+;; XML Declaration: (CTType, VerCT)
+(defun syncml-create-devinf-rxpref-command (ownerdoc cttypenode verctnode) 
+  "*Returns a DOM node corresponding to a SyncML <Rx-Pref> command."
+  (let* ((rxprefnode (dom-document-create-element ownerdoc "Rx-Pref")))
+    (dom-node-append-child rxprefnode cttypenode)
+    (dom-node-append-child rxprefnode verctnode)
+    rxprefnode))
+
+;; syncml-create-devinf-txpref-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <Tx-Pref> command.
+;;
+;; XML Declaration: (CTType, VerCT)
+(defun syncml-create-devinf-txpref-command (ownerdoc cttypenode verctnode) 
+  "*Returns a DOM node corresponding to a SyncML <Tx-Pref> command."
+  (let* ((txprefnode (dom-document-create-element ownerdoc "Tx-Pref")))
+    (dom-node-append-child txprefnode cttypenode)
+    (dom-node-append-child txprefnode verctnode)
+    txprefnode))
+
+
+;; syncml-create-devinf-cttype-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <CTType> command.
+;;
+;; XML Declaration: (#PCDATA)
+(defun syncml-create-devinf-cttype-command (ownerdoc cttypedata) 
+  "*Returns a DOM node corresponding to a SyncML <CTType> command."
+  (let* ((cttypenode (dom-document-create-element ownerdoc "CTType"))
+	 (textnode (dom-document-create-text-node ownerdoc cttypedata)))
+    (dom-node-append-child cttypenode textnode)
+    cttypenode))
+
+
+;; syncml-create-devinf-verct-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <VerCT> command.
+;;
+;; XML Declaration: (#PCDATA)
+(defun syncml-create-devinf-verct-command (ownerdoc verctdata) 
+  "*Returns a DOM node corresponding to a SyncML <VerCT> command."
+  (let* ((verctnode (dom-document-create-element ownerdoc "VerCT"))
+	 (textnode (dom-document-create-text-node ownerdoc verctdata)))
+    (dom-node-append-child verctnode textnode)
+    verctnode))
+
+
+;; syncml-create-devinf-synccap-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <SyncCap> command.
+;;
+;; XML Declaration: (#PCDATA)
+(defun syncml-create-devinf-synccap-command (ownerdoc synctypenodes) 
+  "*Returns a DOM node corresponding to a SyncML <SyncCap> command."
+  (let* ((synccapnode (dom-document-create-element ownerdoc "SyncCap")))
+    (cond ((listp synctypenodes)
+	   (dolist (synctypenode synctypenodes)
+	     (if (dom-node-p synctypenode)
+		 (dom-node-append-child synccapnode synctypenode))
+	     (syncml-debug 1 'syncml-create-devinf-synccap-command "ERROR: No dom-element")))
+	  ((dom-node-p synctypenodes)
+	   (dom-node-append-child synctypenodes)))
+    synccapnode))
+
+;; syncml-create-devinf-synctype-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <SyncType> command.
+;;
+;; XML Declaration: (#PCDATA)
+(defun syncml-create-devinf-synctype-command (ownerdoc synctypedata) 
+  "*Returns a DOM node corresponding to a SyncML <SyncType> command."
+  (let* ((synctypenode (dom-document-create-element ownerdoc "SyncType"))
+	 (textnode (dom-document-create-text-node ownerdoc synctypedata)))
+    (dom-node-append-child synctypenode textnode)
+    synctypenode))
+
+;; syncml-create-devinf-sourceref-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <Sourceref> command.
+;;
+;; XML Declaration: (#PCDATA)
+(defun syncml-create-devinf-sourceref-command (ownerdoc sourcerefdata) 
+  "*Returns a DOM node corresponding to a SyncML <SourceRef> command."
+  (let* ((sourcerefnode (dom-document-create-element ownerdoc "Sourceref"))
+	 (textnode (dom-document-create-text-node ownerdoc sourcerefdata)))
+    (dom-node-append-child sourcerefnode textnode)
+    sourcerefnode))
+
+
+
+;; syncml-create-devinf-verdtd-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <VerDTD> command.
+;;
+;; XML Declaration: (#PCDATA)
+(defun syncml-create-devinf-verdtd-command (ownerdoc) 
+  "*Returns a DOM node corresponding to a SyncML <VerDTD> command."
+  (let* ((verdtdnode (dom-document-create-element ownerdoc "VerDTD"))
+	 (textnode (dom-document-create-text-node ownerdoc "1.1")))
+    (dom-node-append-child verdtdnode textnode)
+    verctnode))
 
 
 

@@ -19,6 +19,7 @@
       syncml-target-locuri "http://binningsbo.homelinux.org:8080/multisync"
       syncml-source-locuri "bbdb://localhost/"
       syncml-target-database "addressbook"
+;;      syncml-target-database "contacts"
       syncml-source-database "bbdb"
       syncml-user "syncml"
       syncml-passwd "syncml"
@@ -29,6 +30,8 @@
 (bbdb-syncml-synchronize)
 
 
+
+(encode-coding-string "hei" 'futf-8)
 
 (insert bbdb-syncml-package-5-doc
 
