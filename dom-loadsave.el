@@ -1,6 +1,6 @@
 ;; dom-loadsave.el -- An minimalist implementation of the DOM Level 3 
 ;;                    Load and Save extension.
-;; $Id: dom-loadsave.el,v 1.5 2004/01/17 16:30:16 joergenb Exp $
+;; $Id: dom-loadsave.el,v 1.6 2004/06/08 20:21:08 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -120,6 +120,11 @@ child nodes."
     (if (numberp (dom-node-value node))
 	(number-to-string (dom-node-value node))
       (dom-node-value node)))
+
+   ;; a LIST of nodes.  Just process each one in turn.
+   ((listp node)
+;;    (dolist (innernode node)
+    (mapconcat 'dom-node-write-to-string-inner node ""))
    
    ;; insert other node types here. (none applicable, attribute nodes are dealt with above).
    (t (error "wrong node type %s" node))

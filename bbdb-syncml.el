@@ -1,5 +1,5 @@
 ;;; bbdb-syncml.el -- A SyncML client for the BBDB database.
-;; $Id: bbdb-syncml.el,v 1.7 2004/01/25 11:57:14 joergenb Exp $
+;; $Id: bbdb-syncml.el,v 1.8 2004/06/08 20:21:08 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -31,6 +31,7 @@
 (require 'bbdb)
 (require 'bbdb-com)
 (require 'bbdb-syncml-debug)
+(require 'bbdb-syncml-vcard)
 (require 'syncml)
 
 (setq bbdb-syncml-debug t)
@@ -61,228 +62,275 @@ this MUST be unique over the lifespan of a BBDB database")
 
 See chapter 5 in the 'SyncML Sync Protocol' document available from www.syncml.org"
   (interactive)
+
   ;; do some initialization
   (message "SyncML synchronization started...")
-  (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "STARTING SYNCHRONIZATION %S" bbdb-syncml-bbdb-database )
+  (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "STARTING SYNCHRONIZATION OF DATABASE: %S" bbdb-syncml-bbdb-database )
    
   ;; check last sync time -get from .bbdb.syncml
-  (setq bbdb-syncml-last-sync (bbdb-syncml-get-last-sync))
+  (setq syncml-previous-timestamp (bbdb-syncml-get-last-sync))
+  (setq syncml-current-timestamp (format-time-string "%Y%m%dT%H%M%SZ" ))
+  (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Timestamp of last sync: %S" syncml-previous-timestamp)
+  (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Timestamp of this sync: %S" syncml-current-timestamp)
   
   ;; send initialization package to server.
   ;; the syncml-init function will break if an error occurred.
   (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Sending initalization package #1 to server." )
   (syncml-init)
   (syncml-process-response)
+  (bbdb-syncml-debug 3 'bbdb-syncml-synchronize "Package #2 recieved from server and processed. Starting to create package #3")
 
-  ;; if the server sent response 508 to the SYNC command, then syncing should be slow.  
-  ;; syncml-init sets the global variable SYNCML-DOING-SLOW-SYNC to 't in this case.  
-  (if 'syncml-doing-slow-sync
-      
-      ;; Slow sync triggered.  We just send <add> commands for all records in the bbdb database.
-      (progn
-	(message "Slow sync forced by server. Sending full database...")
-	(bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Slow sync forced by server.")
-	;; first, create all node which we later need to reference 
-	(let* ((syncml-transmit-doc (syncml-create-syncml-document))
-	       (syncmlnode (dom-document-element syncml-transmit-doc))
-	       ;; the <SyncHdr>
-	       (synchdrnode (syncml-create-synchdr-command
-			     syncml-transmit-doc 
-			     (syncml-create-target-command syncml-transmit-doc syncml-target-locuri)
-			     (syncml-create-source-command syncml-transmit-doc syncml-source-locuri)))
-	       ;; the <SyncBody>
-	       (syncbodynode (syncml-create-syncbody-command syncml-transmit-doc))
-	       ;; the <Status> in reponse to the synchdr
-	       (status-synchdr-node (syncml-create-status-command 
-				     syncml-transmit-doc
-				     (dom-node-text-content (car (xpath-resolve (dom-document-element syncml-response-doc) 
-										"descendant::MsgID")))
-				     "0" ;; <SyncHdr> doesn't have a <CmdID>
-				     "SyncHdr"
-				     (syncml-create-data-command syncml-transmit-doc 
-								 (dom-node-text-content (car (xpath-resolve 
-											      (dom-document-element syncml-response-doc) 
-											      "descendant::Status/child::Data[position()=\"1\"]"))))
-				     (syncml-create-target-command syncml-transmit-doc syncml-target-locuri)
-				     (syncml-create-source-command syncml-transmit-doc syncml-source-locuri)	  
-				     ))
-	       ;; the <Status> in response to the <Alert>
-	       (status-alert-node (syncml-create-status-command
-				   syncml-transmit-doc
-				   (dom-node-text-content (car (xpath-resolve (dom-document-element syncml-response-doc)
-									      "descendant::MsgID")))
-				   (dom-node-text-content (car (xpath-resolve (dom-document-element syncml-response-doc)
-									      "descendant::Alert/child::CmdID")))
-				   "Alert"
-				   (syncml-create-data-command syncml-transmit-doc 
-							       (dom-node-text-content (car (xpath-resolve 
-											    (dom-document-element syncml-response-doc) 
-											    "descendant::Status/child::Data[position()=\"2\"]"))))
-				   (syncml-create-target-command syncml-transmit-doc syncml-target-database)
-				   (syncml-create-source-command syncml-transmit-doc syncml-source-database)	  
-				   ))       
-	       ;; the <Sync> node
-	       (syncnode (syncml-create-sync-command syncml-transmit-doc))
-	       ;; a list of which luids shall be added
-	       (bbdb-syncml-added-luids (bbdb-syncml-get-all-records))
-	       )
+  ;; first, create all node which we later need to reference 
+  (let* ((syncml-transmit-doc (syncml-create-syncml-document))
+	 (syncmlnode (dom-document-element syncml-transmit-doc))
+	 ;; the <SyncHdr>
+	 (synchdrnode (syncml-create-synchdr-command
+		       syncml-transmit-doc 
+		       (syncml-create-target-command syncml-transmit-doc syncml-target-locuri)
+		       (syncml-create-source-command syncml-transmit-doc syncml-source-locuri)))
+	 ;; the <SyncBody>
+	 (syncbodynode (syncml-create-syncbody-command syncml-transmit-doc))
+	 ;; the <Status> in reponse to the synchdr
+	 (status-synchdr-node (syncml-create-status-command 
+			       syncml-transmit-doc
+			       (dom-node-text-content (car (xpath-resolve (dom-document-element syncml-response-doc) 
+									  "descendant::MsgID")))
+			       "0" ;; <SyncHdr> doesn't have a <CmdID>
+			       "SyncHdr"
+			       (syncml-create-data-command 
+				syncml-transmit-doc 
+				(dom-node-text-content (car (xpath-resolve 
+							     (dom-document-element syncml-response-doc) 
+							     "descendant::Status/child::Data[position()=1]"))))
+			       (syncml-create-target-command syncml-transmit-doc syncml-target-locuri)
+			       (syncml-create-source-command syncml-transmit-doc syncml-source-locuri)	  
+			       ))
+	 ;; the <Status> in response to the <Alert>
+	 (status-alert-node 
+	  (syncml-create-status-command
+	   syncml-transmit-doc
+	   (dom-node-text-content (car (xpath-resolve (dom-document-element syncml-response-doc)
+						      "descendant::MsgID")))
+	   (dom-node-text-content (car (xpath-resolve (dom-document-element syncml-response-doc)
+						      "descendant::Alert/child::CmdID")))
+	   "Alert"
+	   (syncml-create-data-command syncml-transmit-doc 
+				       (dom-node-text-content (car (xpath-resolve 
+								    (dom-document-element syncml-response-doc) 
+								    "descendant::Status/child::Data[position()=2]"))))
+	   (syncml-create-target-command syncml-transmit-doc syncml-target-database)
+	   (syncml-create-source-command syncml-transmit-doc syncml-source-database)	  
+	   ))       
+	 ;; the <Sync> node
+	 (syncnode (syncml-create-sync-command syncml-transmit-doc))
 
-	  ;; Add the <SyncHdr> and <SyncBody> nodes to the <SyncML> node.
-	  (dom-node-append-child syncmlnode synchdrnode)
-	  (dom-node-append-child syncmlnode syncbodynode)
+	 ;; a list of luids added since last sync
+	 (bbdb-syncml-added-luids 
+	  ;; if the server sent response 508 to the SYNC command, then syncing should be slow.  
+	  ;; syncml-init sets the global variable SYNCML-DOING-SLOW-SYNC to 't in this case.  	  
+	  (if (not (null syncml-doing-slow-sync ))
+	      (progn 
+		(message "Slow sync forced by server. Sending full database...")
+		(bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Slow sync forced by server.")
+		(bbdb-syncml-get-all-records))
+	    (progn
+	      (message "Doing regular sync. Sending modifications...")
+	      (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Doing regular sync.")	      
+	      (bbdb-syncml-get-added-records))))
+	 ;; a list of luids modified since last sync
+	 (bbdb-syncml-modified-luids
+	  (if (not (null syncml-doing-slow-sync))
+	      (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Doing slow sync. Ignoring modified records.")
+	    (progn
+	      (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Doing regular sync. Getting modified records.")
+	      (bbdb-syncml-get-modified-records syncml-previous-timestamp))))
+	 ;; a list of luids deleted since last sync
+	 (bbdb-syncml-deleted-luids
+	  (if (not (null syncml-doing-slow-sync))
+	      (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Doing slow sync. Ignoring deleted records.")
+	    (progn
+	      (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Doing regular sync. Getting deleted records.")
+	      (bbdb-syncml-get-deleted-records)))))
 
-	  ;; add the <Status> command in response for the <SyncHdr> from server, 
-	  ;; as first child to the <SyncBody>
-	  (dom-node-append-child syncbodynode status-synchdr-node)
+    (bbdb-syncml-debug 3 'bbdb-syncml-synchronize "Done creating base package #3 nodes.")
+    ;; Add the <SyncHdr> and <SyncBody> nodes to the <SyncML> node.
+    (dom-node-append-child syncmlnode synchdrnode)
+    (dom-node-append-child syncmlnode syncbodynode)
+
+    ;; add the <Status> command in response for the <SyncHdr> from server, 
+    ;; as first child to the <SyncBody>
+    (dom-node-append-child syncbodynode status-synchdr-node)
 				  
-	  ;; add the <Status> command in response for the <Alert> from server, 
-	  ;; as second child to the <SyncBody>
-	  (dom-node-append-child syncbodynode status-alert-node)
+    ;; add the <Status> command in response for the <Alert> from server, 
+    ;; as second child to the <SyncBody>
+    (dom-node-append-child syncbodynode status-alert-node)
 
-	  ;; create a <Sync> command to hold all the <Add> commands.
-	  (dom-node-append-child syncbodynode syncnode)
+    ;; create a <Sync> command to hold all the <Add> commands, but only if we have modifications to send.
+;;    (if (or (> (length bbdb-syncml-added-luids) 0)
+;;	    (> (length bbdb-syncml-deleted-luids) 0)
+;;	    (> (length bbdb-syncml-modified-luids) 0))
+;;	(progn
+;;	  (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "We have some changes.")
+;;	  (dom-node-append-child syncbodynode syncnode))
+;;     (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "No records at all!"))
 
-	  ;; The header and status commands are finished.  
-	  (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Skeleton DOM tree for package #3 prepared.")
-	  (bbdb-syncml-debug 2 'bbdb-syncml-synchronize (dom-node-write-to-string syncml-transmit-doc 1))
+    (dom-node-append-child syncbodynode syncnode)
 
-	  ;; go through all the bbdb records, and add them to the <Sync> element. 
-	  (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Processing all bbdb records." )
-	  (dolist (luid bbdb-syncml-added-luids)
-	    (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "Processing luid %S " luid)
-	    (let ((temp-add-node
-		   (syncml-create-add-command syncml-transmit-doc 
-					      (syncml-create-item-command syncml-transmit-doc
-									  nil
-									  (syncml-create-source-command syncml-transmit-doc luid)
-									  (syncml-create-data-command syncml-transmit-doc (bbdb-vcard-export-get-record-as-vcard
-															   (car (bbdb-syncml-get-record-by-luid luid)))))
-					      (syncml-create-meta-command syncml-transmit-doc
-									  (syncml-create-metinf-type-command
-									   syncml-transmit-doc
-									   "text/x-vcard")))))
-	      ;;	      (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "<Add>command representation: %S " temp-add-node)
-	      (dom-node-append-child syncnode temp-add-node)))
-	  
-	  ;; add a <Final> node
-	  (dom-node-append-child syncbodynode (syncml-create-final-command syncml-transmit-doc))
-	  
-	  ;; finished constructing the DOM tree.
-	  (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Package #3 DOM tree finished. Sending to server...")
-	  (bbdb-syncml-debug 2 'bbdb-syncml-synchronize (dom-node-write-to-string syncml-transmit-doc))
-	  
-	  ;; send package #3 to server.  the response from the server, package #4, is stored in SYNCML-RESPONSE-DOC.
-	  (syncml-send-message-with-curl syncml-transmit-doc)
-	  (message "Server modifications recieved. Incorporating them into the BBDB and sending the result to server...")
-	  
-	  ;; Create a skeleton for package #5 (Data Update Status package to Server).
-	  (setq bbdb-syncml-package-5-doc nil)
-	  (setq bbdb-syncml-package-5-doc (syncml-create-syncml-document))
-	  
-	  (let* ((syncml-pkg5-node (dom-document-element bbdb-syncml-package-5-doc))
-		 ;; the <SyncHdr>
-		 (synchdr-pkg5-node (syncml-create-synchdr-command
-				     bbdb-syncml-package-5-doc 
-				     (syncml-create-target-command bbdb-syncml-package-5-doc syncml-target-locuri)
-				     (syncml-create-source-command bbdb-syncml-package-5-doc syncml-source-locuri)))
-		 ;;the <SyncBody>
-		 (syncbody-pkg5-node (syncml-create-syncbody-command bbdb-syncml-package-5-doc)))
-	    
-	  
-	    (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "Done creating base package #5 DOM nodes.")
-	    
-	    ;; Add the <SyncHdr> and <SyncBody> nodes to the <SyncML> node.
-	    (dom-node-append-child syncml-pkg5-node synchdr-pkg5-node)
-	    (dom-node-append-child syncml-pkg5-node syncbody-pkg5-node)
-	    
-	    ;; Add the <Status> refering to <SyncHdr>
-	    (dom-node-append-child syncbody-pkg5-node
-				   (syncml-create-status-command 
-				    bbdb-syncml-package-5-doc
-				    (dom-node-text-content (car (xpath-resolve (dom-document-element syncml-response-doc) 
-									       "descendant::MsgID")))
-				    "0" ;; <SyncHdr> doesn't have a <CmdID>
-				    "SyncHdr"
-				    (syncml-create-data-command bbdb-syncml-package-5-doc 
-								(dom-node-text-content 
-								 (car (xpath-resolve 
-								       (dom-document-element syncml-response-doc) 
-								       "descendant::Status/child::Data[position()=\"1\"]"))))
-				    (syncml-create-target-command bbdb-syncml-package-5-doc syncml-target-locuri)
-				    (syncml-create-source-command bbdb-syncml-package-5-doc syncml-source-locuri)))
-	    
-	    ;; The header and status commands are finished.  
-	    (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Base DOM tree for package #5 prepared.")	  
-	    (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "\n%S" (dom-node-write-to-string bbdb-syncml-package-5-doc 1))
-	    
-	    ;; PROCESS PACKAGE #4 from server, and update BBDB-SYNCML-PACKAGE-5-DOC
-	    (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Processing package #4 from server...")
-	    ;;	    (let ((pk5-syncbody-node (bbdb-syncml-process-modifications-response bbdb-syncml-package-5-doc))) 	      
-	    ;;(dom-node-append-child synchdr-pkg5-node (bbdb-syncml-process-modifications-response bbdb-syncml-package-5-doc)))
-	    (bbdb-syncml-process-modifications-response bbdb-syncml-package-5-doc)
-	    
-	    (dom-node-append-child syncbody-pkg5-node (syncml-create-final-command bbdb-syncml-package-5-doc)))
+    ;; The header and status commands are finished.  
+    (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Skeleton DOM tree for package #3 prepared.")
+    (bbdb-syncml-debug 3 'bbdb-syncml-synchronize (dom-node-write-to-string syncml-transmit-doc 1))
 
-	  ;; finished creating package 5. sending to server.
-	  (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "Modifications processed. Package #5 is now: \n%S" 
-			     (dom-node-write-to-string bbdb-syncml-package-5-doc 2))
-	  
-	  (syncml-send-message-with-curl bbdb-syncml-package-5-doc)
-	  ;; send package #5 to the server.  we must get back package #6 (Map Acknowledgement to client)
-	  (message "Server map acknowledgement. Checking for errors...")
-	  (message "Synchronization complete!")
-	  ))				;end of slow sync
-    ;;
-    ;; normal fast sync
-    ;; 
-    (progn 
-      (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Doing normal two-way sync. Preparing header" )
-      (insert (syncml-header))
-      ;; find all records added, modified and deleted in BBDB since last sync time 
-      
-      (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Processing added records." )
-      (let ((bbdb-syncml-added-luids (bbdb-syncml-get-added-records)))
-	(set-buffer (get-buffer-create "*syncml-transmit*"))
-	(goto-char (point-max))
-	(bbdb-syncml-debug 1 'bbdb-syncml-synchronize 
-			   "Got this list of added luids: %S" bbdb-syncml-added-luids)
-	(dolist (luid bbdb-syncml-added-luids)
-	  (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "Processing luid %S " luid)
-	  (let ((temp-add-command (syncml-create-add-command 
-				   luid 
-				   (bbdb-vcard-export-get-record-as-vcard (car (bbdb-syncml-get-record-by-luid luid))))))
-					;	    (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "<Add> command representation: %S " (dom-node-write-to-string temp-add-command)
-	    (insert temp-add-command))))     
-      
-      ;; should create-xxx-commands increase the <CmdID> ?     
-      ;; send a sync request for those records. (package #3)
+    ;; go through all the added bbdb records, and add them to the <Sync> element. 
+    (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Processing all added bbdb records: %S" bbdb-syncml-added-luids)
+    (dolist (luid bbdb-syncml-added-luids)
+      (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "Processing luid %S " luid)
+      (let ((temp-add-node
+	     (syncml-create-add-command 
+	      syncml-transmit-doc 
+	      (syncml-create-item-command 
+	       syncml-transmit-doc
+	       nil
+	       (syncml-create-source-command syncml-transmit-doc luid)
+	       (syncml-create-data-command syncml-transmit-doc (bbdb-syncml-vcard-get-bbdb-record-as-vcard-string
+								(car (bbdb-syncml-get-record-by-luid luid)))))
+	      (syncml-create-meta-command syncml-transmit-doc
+					  (syncml-create-metinf-type-command
+					   syncml-transmit-doc
+					   "text/x-vcard")))))
+	;;(bbdb-syncml-debug 3 'bbdb-syncml-synchronize "<Add>command representation: %S " temp-add-node)
+	(dom-node-append-child syncnode temp-add-node)))
 
-      ;; parse the responses, and write the results back to the BBDB database. (package #4)
-      ;; some of the server's responses requires the client to respond back. (ie: the ADD command from
-      ;; the server should be acknowledged by the MAP command from the client with the LUID assigned. (clients 
-      ;; always assign luid.)
-      
-      ;; finally, update the last sync timestamp in the mapping file,
-      ;; and send a XXX command back to the server to indicate a successful sync (?)
-      
-      )))    
+    ;; go through all the modified bbdb records, and add them to the <Sync> element. 
+    (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Processing all modified bbdb records: %S" bbdb-syncml-modified-luids)
+    (dolist (luid bbdb-syncml-modified-luids)
+      (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "Processing luid %S " luid)
+      (let ((temp-modify-node
+	     (syncml-create-replace-command 
+	      syncml-transmit-doc 
+	      (syncml-create-item-command 
+	       syncml-transmit-doc
+	       nil
+	       (syncml-create-source-command syncml-transmit-doc luid)
+	       (syncml-create-data-command syncml-transmit-doc (bbdb-syncml-vcard-get-bbdb-record-as-vcard-string
+								(car (bbdb-syncml-get-record-by-luid luid)))))
+	      (syncml-create-meta-command syncml-transmit-doc
+					  (syncml-create-metinf-type-command
+					   syncml-transmit-doc
+					   "text/x-vcard")))))
+	(bbdb-syncml-debug 3 'bbdb-syncml-synchronize "<Replace> command representation: %S " (dom-node-write-to-string temp-modify-node))
+	(dom-node-append-child syncnode temp-modify-node)))
+
+    ;; go through all the deleted bbdb records, and add them to the <Sync> element. 
+    (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Processing all deleted bbdb records: %S" bbdb-syncml-deleted-luids)
+    (dolist (luid bbdb-syncml-deleted-luids)
+      (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "Processing luid %S " luid)
+      (let ((temp-delete-node
+	     (syncml-create-delete-command 
+	      syncml-transmit-doc 
+	      (syncml-create-item-command 
+	       syncml-transmit-doc
+	       nil
+	       (syncml-create-source-command syncml-transmit-doc luid))
+	      (syncml-create-meta-command syncml-transmit-doc
+					  (syncml-create-metinf-type-command
+					   syncml-transmit-doc
+					   "text/x-vcard")))))
+	(dom-node-append-child syncnode temp-delete-node)))
+	  
+    ;; add a <Final> node
+    (dom-node-append-child syncbodynode (syncml-create-final-command syncml-transmit-doc))
+	  
+    ;; finished constructing the DOM tree.
+    (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Package #3 DOM tree finished. Sending to server...")
+    ;;(bbdb-syncml-debug 2 'bbdb-syncml-synchronize (dom-node-write-to-string syncml-transmit-doc))
+	  
+    ;; send package #3 to server.  the response from the server, package #4, is stored in SYNCML-RESPONSE-DOC.
+    (syncml-send-message-with-curl syncml-transmit-doc)
+    (message "Server modifications recieved. Incorporating them into the BBDB and sending the result to server...")
+	  
+    ;; Create a skeleton for package #5 (Data Update Status package to Server).
+    (setq bbdb-syncml-package-5-doc nil)
+    (setq bbdb-syncml-package-5-doc (syncml-create-syncml-document))
+	  
+    (let* ((syncml-pkg5-node (dom-document-element bbdb-syncml-package-5-doc))
+	   ;; the <SyncHdr>
+	   (synchdr-pkg5-node (syncml-create-synchdr-command
+			       bbdb-syncml-package-5-doc 
+			       (syncml-create-target-command bbdb-syncml-package-5-doc syncml-target-locuri)
+			       (syncml-create-source-command bbdb-syncml-package-5-doc syncml-source-locuri)))
+	   ;;the <SyncBody>
+	   (syncbody-pkg5-node (syncml-create-syncbody-command bbdb-syncml-package-5-doc)))
+	    
+	  
+      (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "Done creating base package #5 DOM nodes.")
+	    
+      ;; Add the <SyncHdr> and <SyncBody> nodes to the <SyncML> node.
+      (dom-node-append-child syncml-pkg5-node synchdr-pkg5-node)
+      (dom-node-append-child syncml-pkg5-node syncbody-pkg5-node)
+	    
+      ;; Add the <Status> refering to <SyncHdr>
+      (dom-node-append-child syncbody-pkg5-node
+			     (syncml-create-status-command 
+			      bbdb-syncml-package-5-doc
+			      (dom-node-text-content (car (xpath-resolve (dom-document-element syncml-response-doc) 
+									 "descendant::MsgID")))
+			      "0" ;; <SyncHdr> doesn't have a <CmdID>
+			      "SyncHdr"
+			      (syncml-create-data-command bbdb-syncml-package-5-doc 
+							  (dom-node-text-content 
+							   (car (xpath-resolve 
+								 (dom-document-element syncml-response-doc) 
+								 "descendant::Status/child::Data[position()=1]"))))
+			      (syncml-create-target-command bbdb-syncml-package-5-doc syncml-target-locuri)
+			      (syncml-create-source-command bbdb-syncml-package-5-doc syncml-source-locuri)))
+	    
+      ;; The header and status commands are finished.  
+      (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Base DOM tree for package #5 prepared.")	  
+      (bbdb-syncml-debug 3 'bbdb-syncml-synchronize "\n%S" (dom-node-write-to-string bbdb-syncml-package-5-doc 1))
+	    
+      ;; PROCESS PACKAGE #4 from server, and update BBDB-SYNCML-PACKAGE-5-DOC
+      (bbdb-syncml-debug 1 'bbdb-syncml-synchronize "Processing package #4 from server...")
+      (setq bbdb-syncml-pkg4-doc syncml-response-doc)      
+      (bbdb-syncml-process-modifications-response bbdb-syncml-package-5-doc 
+						  bbdb-syncml-added-luids 
+						  bbdb-syncml-modified-luids 
+						  bbdb-syncml-deleted-luids)
+	    
+      (dom-node-append-child syncbody-pkg5-node (syncml-create-final-command bbdb-syncml-package-5-doc)))
+
+    (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "OK luids    : %S" bbdb-syncml-pkg5-ok-luids)
+    (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "Not OK luids: %S" bbdb-syncml-pkg5-not-ok-luids)
+
+    ;; finished creating package 5. sending to server.
+    (bbdb-syncml-debug 2 'bbdb-syncml-synchronize "Modifications processed. Sending package #5 to server.")
+    (bbdb-syncml-debug 3 'bbdb-syncml-synchronize "Package #5 is now: \n%S" (dom-node-write-to-string bbdb-syncml-package-5-doc 2))
+	  
+    (syncml-send-message-with-curl bbdb-syncml-package-5-doc)
+    ;; send package #5 to the server.  we must get back package #6 (Map Acknowledgement to client)
+    (message "Server map acknowledgement. Checking for errors...")
+    ;; TODO: implement checking...
+    
+    ;; if all was successful, update the timestamp in the mapping file.
+    (bbdb-syncml-write-mapping-file bbdb-syncml-pkg5-ok-luids)
+    (bbdb-syncml-write-next-timestamp syncml-current-timestamp)
+
+    (message "Synchronization complete!")))
+
+
+
 
 
 (defun bbdb-syncml-get-added-records (&optional timestamp)
   "Returns the LUID of records added since last sync.
-
 An new/added record is:
 a record without luid
  OR
 a record with luid, but without an entry in the mapping file
-
 is this the wisest way to check?
-
 better for the function to return a list of records, and assign the luids temporary, and save 
 locally only if a succesful sync is made? 
-
 note: there may be returned a <status> command from the server for this.  or we can request it."
-  (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records "Started")
+  (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records "Started. Validating BBDB database.")
   ;; ensure that the next luid is up-to-date
   (bbdb-syncml-validate-luids nil)
   (setq bbdb-syncml-next-luid (bbdb-syncml-get-next-luid))
@@ -294,14 +342,14 @@ note: there may be returned a <status> command from the server for this.  or we 
   (let (added-luid-list)
     (dolist (node (bbdb-records) added-luid-list)
       (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records 
-			 "Checking record with name and company: %S - %S" 
+			 "Checking record having name and company: %S - %S" 
 			 (bbdb-record-name node) 
 			 (bbdb-record-company node))
       (if (and (not (null (bbdb-record-getprop node 'luid)))
 	       (member (string-to-number (bbdb-record-getprop node 'luid)) bbdb-syncml-mapping-luid-list))
 	  ;; record has a luid and is present in the mapping file. It is not added since last successful sync
 	  (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records
-			     "LUID %S already exists in the mapping file." 
+			     "The LUID %S for this record already exists in the mapping file. Record is not added since last sync." 
 			     (bbdb-record-getprop node 'luid))
 	;; record is added since last successful sync.
 	;; Create a new luid if none exists, and increment counter.
@@ -386,43 +434,39 @@ and this function should use this in some way.
 	(let ((record-timestamp (bbdb-record-getprop node 'timestamp))
 	      (record-luid (bbdb-record-getprop node 'luid)))
 	  (bbdb-syncml-debug 1 'bbdb-syncml-get-modified-records 
-			     "Node has timestamp of %S. %S" record-timestamp last-timestamp)
+			     "Node has timestamp of %S. " record-timestamp)
 	  (if (string< record-timestamp last-timestamp)
 	      ;; not changed since last synctime
 	      (bbdb-syncml-debug 1 'bbdb-syncml-get-modified-records "Record not changed.")
 	    (bbdb-syncml-debug 1 'bbdb-syncml-get-modified-records "Record CHANGED.")
-	    (push record-luid modified-luid-list)))))))
+	    (push record-luid modified-luid-list)))))
+    ;; we must subtract LUIDs that also were detected by the 'bbdb-syncml-get-new-records' function:
+    (dolist (element (bbdb-syncml-get-added-records) nil)
+      (bbdb-syncml-debug 2 'bbdb-syncml-get-modified-records "Checking if luid %s was present among modified records" element)
+      (delete* element modified-luid-list))
+    (bbdb-syncml-debug 2 'bbdb-syncml-get-modified-records "Removed all added luids from the modified ones.")
+    modified-luid-list))
 
 
 (defun bbdb-syncml-get-deleted-records ()
   "Returns the LUID of records deleted since last sync.  
 
-This function checks all current bbdb-records against the mapping file (having the
-state of the bbdb-database at the time of last sync."
-
+This function checks all current bbdb-records against the mapping file.
+LUIDs present in the mapping file, but NOT in the BBDB have been deleted since last sync."
   (let (deleted-luids)	
-
     ;; first, put all luids in (bbdb-records) into a list
     (let (bbdb-records-luids)
       (dolist (node (bbdb-records) bbdb-records-luids)
-	(push (bbdb-record-getprop node 'luid) bbdb-record-luids))
-			
-      ;; then, iterate over all luids in the mapping list, and return all which are present in mapping, 
-      ;; but not (bbdb-records)
-      (dolist (node bbdb-syncml-mapping-members deleted-luids)
-	(if (not (member node (bbdb-records-luids)))
-	    (push node deleted-luids))))))
-
-
-(defun bbdb-syncml-get-last-sync () 
-  "Gets the last sync time from the mapping file"
-  (bbdb-syncml-debug 1 'bbdb-syncml-get-last-sync "Triggered")
-  (set-buffer (find-file-noselect bbdb-syncml-mapping-file))
-  (goto-char (point-min))
-  (if (not (re-search-forward ";;; last sync timestamp: \\(.*\\)" nil t))
-      (bbdb-syncml-debug 1 'bbdb-syncml-get-last-sync "Not found.")
-    (bbdb-syncml-debug 1 'bbdb-syncml-get-last-sync "Found: %S" (match-string 1))
-    (match-string 1)))
+	(push (bbdb-record-getprop node 'luid) bbdb-records-luids))
+      (bbdb-syncml-debug 2 'bbdb-syncml-get-deleted-records "All luids: %S" bbdb-records-luids)
+ 
+      ;; then, iterate over all luids in the mapping list, and return all which are present 
+      ;; in the mapping list, but not in (bbdb-records)
+      (dolist (node bbdb-syncml-mapping-luid-list deleted-luids)
+	(bbdb-syncml-debug 2 'bbdb-syncml-get-deleted-records "Node is: %S" (number-to-string node))
+	(if (not (member (number-to-string node) bbdb-records-luids))
+	    (progn (bbdb-syncml-debug 2 'bbdb-syncml-get-deleted-records "luid %S present in mapping list, but not among bbdb-records" node)  
+		   (push node deleted-luids)))))))
 
 
 (defun bbdb-syncml-initialize () 
@@ -473,7 +517,7 @@ Will not delete LUID notes field from a previuos synchronized dataset."
   (setq bbdb-syncml-next-luid (bbdb-syncml-get-next-luid)))
 
 (defun bbdb-syncml-read-mapping-file () 
-  "Reads the mapping file, and put the list of successful luids in a list.
+  "Reads the mapping file, and put the list of successful luids in a list. This list contains number, not strings.
 Returns the list."
   (bbdb-syncml-open-mapping-file)
   (set-buffer bbdb-syncml-mapping-buffer)
@@ -486,8 +530,47 @@ Returns the list."
 
 (defun bbdb-syncml-write-mapping-file (luid-list)
   "Writes the new LUID-LIST to the mapping file.
+items in the LUID-LIST should be numbers, not strings.
 NOTE: should only be called after syncing is finished"
-  )
+  (bbdb-syncml-debug 1 'bbdb-syncml-write-mapping-file "Started.  Luid list is %S" luid-list)
+  (set-buffer (find-file-noselect bbdb-syncml-mapping-file))
+  (goto-char (point-min))
+  (if (not (re-search-forward ";;; luids: " nil t))
+      (progn (bbdb-syncml-debug 1 'bbdb-syncml-increment-luid "Unable to find position for luids in mapping file.")
+	     (error "unable to find  position for luids in mapping file!"))
+    (kill-region  (point) (line-end-position))
+    (let* ((number-list (mapcar 'bbdb-syncml-element-to-number luid-list))
+	   (unique-list (remove-duplicates number-list))
+	   (sorted-list (sort unique-list '<)))
+      (bbdb-syncml-debug 2 'bbdb-syncml-write-mapping-file "Sorted, unique luid-list is: %S" sorted-list)
+      (insert "(" (mapconcat 'number-to-string sorted-list " ") ")")
+      (save-buffer))))
+
+
+(defun bbdb-syncml-get-last-sync () 
+  "Gets the last sync time from the mapping file"
+  (bbdb-syncml-debug 1 'bbdb-syncml-get-last-sync "Triggered")
+  (set-buffer (find-file-noselect bbdb-syncml-mapping-file))
+  (goto-char (point-min))
+  (if (not (re-search-forward ";;; last sync timestamp: \\(.*\\)" nil t))
+      (bbdb-syncml-debug 1 'bbdb-syncml-get-last-sync "Not found.")
+    (bbdb-syncml-debug 1 'bbdb-syncml-get-last-sync "Found: %S" (match-string 1))
+    (match-string 1)))
+
+
+(defun bbdb-syncml-write-next-timestamp (timestamp)
+  "Writes the TIMESTAMP to the mapping file.
+NOTE: should only be called after syncing is finished and successful."
+  (bbdb-syncml-debug 1 'bbdb-syncml-write-next-timestamp "Started. Timestamp is %S" timestamp)
+  (set-buffer (find-file-noselect bbdb-syncml-mapping-file))
+  (goto-char (point-min))
+  (if (not (re-search-forward ";;; Last sync timestamp: " nil t))
+      (progn (bbdb-syncml-debug 1 'bbdb-syncml-increment-luid "Unable to find position for timestamp in mapping file.")
+	     (error "unable to find  position for timestamp in mapping file!"))
+    (kill-region  (point) (line-end-position))
+    (insert timestamp)
+    (save-buffer)))
+
 
 
 (defun bbdb-syncml-get-next-luid ()
@@ -601,9 +684,9 @@ bbdb-syncml-mapping-file"
   ())
 
 ;;;;;;;;;;;;;;;;;;;
-					;
-					; working directly towards the bbdb_
-					;
+;;
+;; working directly towards the bbdb_
+;;
 ;;;;;;;;;;;;;;;;;;
 (defun bbdb-syncml-get-record-by-luid (luid)
   "Return the record with the given LUID"
@@ -611,187 +694,330 @@ bbdb-syncml-mapping-file"
     (bbdb-search (bbdb-records) nil nil nil notes)))
 
 
+(defun bbdb-syncml-add-record (record)
+  ())
+
+(defun bbdb-syncml-delete-record (record)
+  ())
+
+(defun bbdb-syncml-modify-record (record)
+  ())
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; syncml process functions
 ;;
-;; these functions are supposed to override (or: be used instead of) the default syncml-process-xxx-command in
-;; syncml.el.  They include bbdb-specific actions to take in different scenarios, like:
-;; *) if an item was successfully sync'ed (ie: server returned 200), the timestamp in bbdb should be updated.
+;; these functions are bbdb-specific actions to take based on the response from the syncml server.  
+;; they'll be used instead of the default syncml-process-xxx-command in syncml.el, which ain't supposed to
+;; know anything about the bbdb.
 ;;
 ;;;;;;;;;;;;;;;;;;
 
-(defun bbdb-syncml-process-modifications-response (pkg5-doc)
-  "This functions processes the response package #4 from the server."
+(defun bbdb-syncml-process-modifications-response (pkg5-doc added-luids modified-luids deleted-luids)
+  "This functions processes the response package #4 from the server, and builds the body of package #5."
   (if (not (dom-document-p pkg5-doc))
       (throw 'wrong-type nil))
-;;  (let ((tull-og-vas nil))
-    (dolist (node (xpath-resolve (dom-document-element syncml-response-doc) 
-				 "descendant::SyncBody/child::*")
-		  nil)
-      (progn 
-	;;      bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Triggered. Is the node a dom-node?: %S" (dom-node-p node))
-	;;      bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Is the node a dom-element?: %S" (dom-element-p node))
-	(if (not (dom-element-p node))
-	    (progn
-	      (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "NODE is not a dom-element.")
-	      (throw 'wrong-type nil)))
-	(bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Name of node: %S" (dom-element-name node))
-	(let ((node-element-name (dom-element-name node)))
-	  (bbdb-syncml-debug 3 'bbdb-syncml-process-modifications-response "Name of node: %S" (dom-element-name node))
-	  (cond ((string= "Status" node-element-name) 
-		 ;;bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Calling bbdb-syncml-process-status-command.")
-		 (funcall 'bbdb-syncml-process-status-command node))
-		((string= "Alert" node-element-name) 
-		 ;;(bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Calling syncml-process-alert-command.")
-		 (funcall 'syncml-process-alert-command node))
-		((string= "Sync" node-element-name) 
-		 ;; For <Sync> command, we need to traverse it's childs, try to do whatever requested in the BBDB, and build a response indication
-		 ;; if the BBDB-modification was successfull or not.  
-		 (bbdb-syncml-debug 3 'bbdb-syncml-process-modifications-response "Calling bbdb-syncml-process-sync-command.")
-	;;	 (setq tull-og-vas (funcall 'bbdb-syncml-process-sync-command node pkg5-doc)))
-		 (funcall 'bbdb-syncml-process-sync-command node pkg5-doc))
-		(t 
-		 (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Unknown command %s. Ignoring." (dom-element-name node)))))))
-    (bbdb-syncml-debug 3 'bbdb-syncml-process-modifications-response "Function finished."))
-;;    tull-og-vas))
+  ;; mode of operation:  as we iterate over <status>es, one <sync> and it's children <add>s, <replace>s and <delete>s, we process each in turn.
+  (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Resetting OK and NOT-OK lists")
+  (setq bbdb-syncml-pkg5-ok-luids bbdb-syncml-mapping-luid-list)
+  (setq bbdb-syncml-pkg5-not-ok-luids nil)
+  (dolist (node (xpath-resolve (dom-document-element syncml-response-doc) "descendant::SyncBody/child::*") nil)
+    (if (not (dom-element-p node))
+	(progn (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "NODE is not a dom-element.")
+	       (throw 'wrong-type nil)))
+    (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Processing node: %S" (dom-element-name node))
+    (let ((node-element-name (dom-element-name node)))
+      (cond ((string= "Status" node-element-name) 
+	     (let ((syncml-cmd (dom-node-text-content (car (xpath-resolve node "child::Cmd"))))
+		   (syncml-data (dom-node-text-content (car (xpath-resolve node "child::Data")))))
+	       (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response 
+				  "Got a <Status> in response to a %S command with data %S: %S" 
+				  syncml-cmd syncml-data (syncml-lookup-response-code syncml-data)) 
+	       ;; The <Status> command is used as a response to many different requests. 
+	       ;; The <Cmd> and <CmdRef> tells which.
+	       (cond ((string= "SyncHdr" syncml-cmd)
+		      (progn (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "CmdRef is SyncHdr")
+			     (cond ((string= "407" syncml-data)
+				    (progn (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response 
+							      "Server said 407: Missing Credentials")) 
+				    ;; must break execution and resend credentials;
+				    (error "Authentication rejected"))
+				   ((not (or (string= syncml-data "212") ;; we accept only 200 and 212 as valid for further processing.
+					     (string= syncml-data "200")))
+				    (progn (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response 
+							      "ERROR. Server said: %S: %S" 
+							      syncml-data (syncml-lookup-response-code syncml-data)) 
+					   (error (syncml-lookup-response-code syncml-data)))))
+			     (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response 
+						"Response code %s is OK. Continuing..." syncml-data)))
+		     ((string= "Alert" syncml-cmd)
+		      (cond ((string= "404" syncml-data)
+			     (progn (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response 
+						       "Server said 404: Not found"))
+			     (error "Target database not found"))
+			    ((string= "508" syncml-data)
+			     (progn (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response 
+						       "Server said 508: Refresh required. Initiating slow sync"))
+			     (setq syncml-doing-slow-sync 't))
+			    ((not (string= syncml-data "200"))
+			     (progn (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response 
+						       "ERROR. Server said %S" syncml-data)
+				    (error "Error in request")))))
+		     ((string= "Sync" syncml-cmd)
+		      (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Response to <Sync> command."))
+		     ((string= "Add" syncml-cmd)
+		      (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Response to <Add> command.")
+		      (let* ((node-luid (dom-node-text-content (car (xpath-resolve node "child::SourceRef")))))
+			(bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "<SourceRef> (luid) is %s." node-luid)
+			(if (equal syncml-data "201")
+			    (progn 
+			      (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response 
+						 "Record successfully added at server.")
+			      ;; don't update record's timestamp, but add the luid to the mapping list of luids.
+			      (push node-luid bbdb-syncml-pkg5-ok-luids))
+			  (progn
+			    (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response
+					       "Record NOT successfully added at server. Will not update mapping file.")
+			    ;; don't update record's timestamp. don't add luid to the mapping list.
+			    (push node-luid bbdb-syncml-pkg5-not-ok-luids)
+			    ))))
+		     ((string= "Replace" syncml-cmd)
+		      (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Response to <Replace> command.")
+		      (let* ((node-luid (dom-node-text-content (car (xpath-resolve node "child::SourceRef")))))
+			(bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "<SourceRef> (luid) is %s." node-luid)
+			(if (equal syncml-data "201")
+			    (progn 
+			      (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response 
+						 "Record successfully modified at server.")
+			      ;; don't update record's timestamp.  Luid still exists in the mapping list.
+			      (push node-luid bbdb-syncml-pkg5-ok-luids))
+			  (progn
+			    (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response
+					       "Record NOT successfully modified at server. .")
+			    ;; The record must be <replace>d again during next sync. Update it's timestamp. Still in the mapping list.
+			    ;; TODO: implement timestamp update
+			    (push node-luid bbdb-syncml-pkg5-ok-luids)
+			    ))))
+		     ((string= "Delete" syncml-cmd)
+		      (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Response to <Delete> command.")
+			  
+		      (let* ((node-luid (dom-node-text-content (car (xpath-resolve node "child::SourceRef")))))
+			(bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "<SourceRef> (luid) is %s." node-luid)
+			(if (equal syncml-data "210")
+			    ;; if successful delete, remove from mapping list. (the object itself was already deleted from bbdb before we started sync)
+			    (progn (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-reponse "Record successfully deleted at server")
+				   ;; TODO: add the if...
+				   (setq bbdb-syncml-pkg5-ok-luids (delete (bbdb-syncml-element-to-number node-luid) bbdb-syncml-pkg5-ok-luids)))
+				   ;;(bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-reponse "Is node-luid a string?: %S" (stringp node-luid))
+				   ;;(bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-reponse "Is node-luid a number?: %S" (numberp node-luid))
+				   ;;(dolist (element bbdb-syncml-pkg5-ok-luids nil)
+				   ;;  (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-reponse "Is element a number?: %S" (numberp element))
+				   ;;  (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-reponse "Is element a string?: %S" (stringp element)))
+				   ;;(bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-reponse "Deleted list: %S" 
+			;;			      (remove* node-luid bbdb-syncml-pkg5-ok-luids :test 'equal))
+			;;	   (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-reponse "Deleted list: %S" 
+			;;			      (remove node-luid bbdb-syncml-pkg5-ok-luids))
+			;;	   (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-reponse "Deleted list: %S" bbdb-syncml-pkg5-ok-luids))
+			  ;; TODO: if un-successful delete, keep in mapping list  (does the server send it's copy to us, since we've already delete it...)
+			  (progn (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Item NOT DELETED at server!")
+				 (push node-luid bbdb-syncml-pkg5-not-ok-luids))))))
+		 
+		 
+	       (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Finished with the <Status> node.")))
+	    ;; end of processing <status>-node.
+	       
+	    ((string= "Alert" node-element-name) 
+	     (funcall 'syncml-process-alert-command node))
+	       
+	    ;; ;;;;;;;;;;;;;;;;;;
+	    ;;  SYNC
+	    ;; ;;;;;;;;;;;;;;;;;;
+	    ((string= "Sync" node-element-name) 
+	     ;; For <Sync> command, we need to traverse it's childs, try to do whatever 
+	     ;; requested in the BBDB, and build a response indication
+	     ;; if the BBDB-modification was successfull or not.  
+	     (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Got a <Sync> command. Processing children." )
+	     
+	     ;; go thourgh all the children of the <Sync> command NODE.
+	     ;; they are either <Add>, <Replace> or <Delete>.
+	     ;; for each child, interact with the BBDB in the proper way.
+	     ;; and create <Status>-commands and add those to the pkg5 dom.
+	     
+	     ;; do all <Add> commands.
+	     (let* ((all-ok t)
+		    )
+	       ;; do all <Add> commands.
+	       (dolist (add-node (xpath-resolve node "child::Add")
+				 nil)
+		 (progn 
+		   (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "New record from server.")
+		   (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "%S" (dom-node-write-to-string add-node))
+		   (let* ((newrecord (bbdb-vcard-snarf 
+				      (dom-node-text-content (car (xpath-resolve add-node "child::Item/child::Data"))))))
+			 
+		     (bbdb-record-putprop newrecord 'luid bbdb-syncml-next-luid)
+		     (bbdb-record-putprop newrecord 'creation-date syncml-current-timestamp)
+		     ;; because of delay in this program, we temporarily disabling the automatic timestamp hook, as we want to use the 
+		     ;; syncml-current-timestamp instead,
+		     ;; otherwise this record will be tagged as modified during next sync even if no changes was made.
+		     (remove-hook bbdb-change-hook 'bbdb-timestamp-hook)
+		     (bbdb-record-putprop newrecord 'timestamp syncml-current-timestamp)		     
+		     (bbdb-save-db)
+		     (add-hook bbdb-change-hook 'bbdb-timestamp-hook)
+
+		     (bbdb-syncml-increment-luid)
+		     (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "The new record was added to BBDB: %S." (bbdb-record-name newrecord))
+		     (let* ((add-status-node 
+			     (syncml-create-status-command
+			      pkg5-doc
+			      (dom-node-text-content (car (xpath-resolve (dom-document-element syncml-response-doc) 
+									 "descendant::MsgID")))
+			      (dom-node-text-content (car (xpath-resolve add-node "child::CmdID")))
+			      "Add"
+			      (syncml-create-data-command pkg5-doc "201") ;; 201 = the requested item was added.
+			      nil
+			      (syncml-create-sourceref-command pkg5-doc (bbdb-record-getprop newrecord 'luid)))))
+		       (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-response "Adding <Status> node for the new record to pkg5")
+		       (dom-node-append-child (car (xpath-resolve (dom-document-element pkg5-doc)
+								  "descendant::SyncBody"))
+					      add-status-node)
+		       ;; record added.  update mapping list.
+		       (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "<Status> command created for new record.")
+		       (push (bbdb-record-getprop newrecord 'luid) bbdb-syncml-pkg5-ok-luids)
+		       )	  
+		     )))
+		   
+	       ;; do all <Replace> commands. delete old record in bbdb and insert a new one, setting luid equal to the old bbdb record.
+	       (dolist (replace-node (xpath-resolve node "child::Replace")
+				     nil)	       
+		 (progn 
+		   (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Modified record from server.")
+		   (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "%S" (dom-node-write-to-string replace-node))
+		   (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Modified record - first deleting it from bbdb." )
+		   (let* ((luid-to-delete (dom-node-text-content (car (xpath-resolve replace-node "child::Item/child::Target/child::LocURI"))))
+			  (record-to-delete (car (bbdb-syncml-get-record-by-luid luid-to-delete))))
+		     (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "About to delete record with luid %s." luid-to-delete )
+		     (bbdb-delete-record-internal record-to-delete)
+		     (bbdb-save-db)
+		     (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Record with luid %s deleted." luid-to-delete )
+		     (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Modified record - about to create new record.")
+		     (let* ((newrecord (bbdb-vcard-snarf 
+					(dom-node-text-content (car (xpath-resolve replace-node "child::Item/child::Data"))))))			 
+		       (bbdb-record-putprop newrecord 'luid luid-to-delete)
+		       (bbdb-record-putprop newrecord 'creation-date syncml-current-timestamp)
+		       ;; because of delay in this program, we temporarily disabling the automatic timestamp hook, as we want to use the 
+		       ;; syncml-current-timestamp instead,
+		       ;; otherwise this record will be tagged as modified during next sync even if no changes was made.
+		       (remove-hook bbdb-change-hook 'bbdb-timestamp-hook)
+		       (bbdb-record-putprop newrecord 'timestamp syncml-current-timestamp)		     
+		       (bbdb-save-db)
+		       (add-hook bbdb-change-hook 'bbdb-timestamp-hook)
+		       (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Modified record - new record created with same luid %s as old." 
+					  (bbdb-record-getprop newrecord 'luid))
+		       (let* ((replace-status-node 
+			       (syncml-create-status-command
+				pkg5-doc
+				(dom-node-text-content (car (xpath-resolve (dom-document-element syncml-response-doc) 
+									   "descendant::MsgID")))
+				(dom-node-text-content (car (xpath-resolve replace-node "child::CmdID")))
+				"Replace"
+				(syncml-create-data-command pkg5-doc "201") ;; 201 = the requested item was added.
+				nil
+				(syncml-create-sourceref-command pkg5-doc (bbdb-record-getprop newrecord 'luid)))))
+			 (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-response "Adding <Status> node for the modified record to pkg5")
+			 (dom-node-append-child (car (xpath-resolve (dom-document-element pkg5-doc)
+								    "descendant::SyncBody"))
+						replace-status-node)
+			 ;; record updated.  no changes to the mapping list.
+			 (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "<Status> command created for new record.")
+		     )))))
+
+	       ;; do all <Delete> commands.
+	       (dolist (delete-node (xpath-resolve node "child::Delete")
+			     nil)
+		 (progn 
+		   (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Delete command from server." )
+		   (let* ((luid-to-delete (dom-node-text-content (car (xpath-resolve delete-node "child::Item/child::Target/child::LocURI"))))
+			  (record-to-delete (car (bbdb-syncml-get-record-by-luid luid-to-delete))))
+		     (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "About to delete record with luid %s." luid-to-delete )
+		     (bbdb-delete-record-internal record-to-delete)
+		     (bbdb-save-db)
+		     (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "Record with luid %s deleted." luid-to-delete )
+		     (let* ((delete-status-node 
+			     (syncml-create-status-command
+			      pkg5-doc
+			      (dom-node-text-content (car (xpath-resolve (dom-document-element syncml-response-doc) 
+									 "descendant::MsgID")))
+			      (dom-node-text-content (car (xpath-resolve delete-node "child::CmdID")))
+			      "Delete"
+			      (syncml-create-data-command pkg5-doc "210") ;; 210 = Delete without archive.
+			      nil
+			      (syncml-create-sourceref-command pkg5-doc luid-to-delete))))
+		       (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-response "Adding <Status> node for the deleted record to pkg5")
+		       (dom-node-append-child (car (xpath-resolve (dom-document-element pkg5-doc)
+								  "descendant::SyncBody"))
+					      delete-status-node)
+		       ;; record deleted.  update mapping list.
+		       (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "<Status> command created for deleted record.")
+		       (setq bbdb-syncml-pkg5-ok-luids (delete (bbdb-syncml-element-to-number luid-to-delete) bbdb-syncml-pkg5-ok-luids))
+		       ))))
+		   
+		   
+		   
+	       ;; if processing of all children was succeccful, return a 200 for the <Sync> command as well. (CAN THIS BE TRUE?  
+	       ;; the whole sync as such should be ok even if one indidual record was not successfully synced?)
+	       ;; if processing of all children was _not_ sucessfull, i don't know what to return. read syncml standard.
+	       (if (not (null all-ok))
+		   (progn 
+		     (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "All sync commands completed successfully. Adding <Status> for <Sync>-command.")
+		     (let* ( ;;(temp-doc (syncml-create-syncml-document))
+			    ;;(temp-node (dom-document-element temp-doc))
+			    (status-node 
+			     (syncml-create-status-command
+			      pkg5-doc
+			      (dom-node-text-content (car (xpath-resolve (dom-document-element syncml-response-doc) 
+									 "descendant::MsgID")))
+			      (dom-node-text-content (car (xpath-resolve (dom-document-element syncml-response-doc)
+									 "descendant::Sync/child::CmdID")))
+			      "Sync"
+			      (syncml-create-data-command pkg5-doc "200") 
+			      (syncml-create-target-command pkg5-doc 
+							    (dom-node-text-content 
+							     (car (xpath-resolve (dom-document-element syncml-response-doc)
+										 "descendant::Sync/child::Target/child::LocURI"))))
+			      (syncml-create-source-command pkg5-doc 
+							    (dom-node-text-content 
+							     (car (xpath-resolve (dom-document-element syncml-response-doc) 
+										 "descendant::Sync/child::Source/child::LocURI")))))))
+		       (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-response "created status node.")
+		       ;;(dom-node-append-child temp-node status-node)
+		       ;;(bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-response "Document is: %S." (dom-node-write-to-string status-node))
+		       ;;(dom-node-insert-before temp-syncbody-node 
+		       ;;				    status-node 
+		       ;;				    (dom-node-first-child temp-syncbody-node)))))
+			   
+		       ;;	    (dom-node-test-new-child pkg5-syncbody-node status-node)
+		       (dom-node-append-child (car (xpath-resolve (dom-document-element pkg5-doc)
+								  "descendant::SyncBody"))
+					      status-node)
+		       )))))
+	    (t 
+	     (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response 
+				"Unknown command %s. Ignoring and proceeding to next." (dom-element-name node))))
+
+      (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-response "OK luids    : %S" bbdb-syncml-pkg5-ok-luids)
+      (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-response "Not OK luids: %S" bbdb-syncml-pkg5-not-ok-luids)
+      (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-response "Function finished."))))
+  
 	
-
-
-
-
-
-;; For <Status> in reponse to <Replace> and <Delete> commands, we need to make necessary changes to the BBDB
-
-
-	
-;;
-;; bbdb-syncml-process-status-command (node)
-;;
-;; This function processes a <Status> node from the server.
-;;
-(defun bbdb-syncml-process-status-command (node)
-  "Processes a <Status> NODE."
-  (let ((syncml-cmd (dom-node-text-content (car (xpath-resolve node "child::Cmd"))))
-	(syncml-data (dom-node-text-content (car (xpath-resolve node "child::Data")))))
-    (bbdb-syncml-debug 1 'bbdb-syncml-process-status-command 
-		       "Got a <Status> in response to a %S command with data %S: %S" 
-		       syncml-cmd syncml-data (syncml-lookup-response-code syncml-data)) 
-    ;; the <Status> command is used as a response to many different request. The <Cmd> and <CmdRef> tells which.
-    ;; further processing must be based on this. (ie: preserve the request in some way)
-    (cond ((string= "SyncHdr" syncml-cmd)
-	   (progn (bbdb-syncml-debug 1 'bbdb-syncml-process-status-command "CmdRef is SyncHdr")
-		  (cond ((string= "407" syncml-data)
-			 (progn (bbdb-syncml-debug 1 'bbdb-syncml-process-status-command "Server said 407: Missing Credentials")) 
-			 ;; must break execution and resend credentials;
-			 (error "Authentication rejected"))
-			((not (or (string= syncml-data "212") ;; we accept only 200 and 212 as valid for further processing.
-				  (string= syncml-data "200")))
-			 (progn (bbdb-syncml-debug 1 'bbdb-syncml-process-status-command 
-						   "ERROR. Server said: %S: %S" syncml-data (syncml-lookup-response-code syncml-data)) 
-				(error (syncml-lookup-response-code syncml-data)))))
-		  (bbdb-syncml-debug 1 'bbdb-syncml-process-status-command "Response code %s is OK. Continuing..." syncml-data)))
-	  ((string= "Alert" syncml-cmd)
-	   (cond ((string= "404" syncml-data)
-		  (progn (bbdb-syncml-debug 1 'bbdb-syncml-process-status-command "Server said 404: Not found"))
-		  (error "Target database not found"))
-		 ((string= "508" syncml-data)
-		  (progn (bbdb-syncml-debug 1 'bbdb-syncml-process-status-command "Server said 508: Refresh required. Initiating slow sync"))
-		  (setq syncml-doing-slow-sync 't))
-		 ((not (string= syncml-data "200"))
-		  (progn (bbdb-syncml-debug 1 'bbdb-syncml-process-status-command "ERROR. Server said %S" syncml-data)
-			 (error "Error in request")))))
-	  ((string= "Sync" syncml-cmd)
-	   (bbdb-syncml-debug 1 'bbdb-syncml-process-status-command "<Sync> command."))
-	  ((string= "Add" syncml-cmd)
-	   (bbdb-syncml-debug 1 'bbdb-syncml-process-status-command "<Add> command.")))
-    
-    (bbdb-syncml-debug 1 'bbdb-syncml-process-status-command "Finished.")))
-
-
-
-;;
-;; bbdb-syncml-process-sync-command (node)
-;;
-;; This function processes a <Sync> command from the server.
-;;
-(defun bbdb-syncml-process-sync-command (syncnode pkg5-doc)
-  "Processes a <Sync> NODE."
-  (bbdb-syncml-debug 1 'bbdb-syncml-process-sync-command "Got a <Sync> command: %S." (dom-element-name syncnode))
-
-  ;; go thourgh all the children of the <Sync> command NODE.
-  ;; they are either <Add>, <Replace> or <Delete>.
-  ;; for each child, interact with the BBDB in the proper way.
-  ;; and create a 200 <Status>-command to be returned.
-
-  ;; do all <Add> commands.
-  (let* ((all-ok t)
-;;	 (temp-syncbody-node (car (xpath-resolve (dom-document-element pkg5-doc)
-;;						 "descendant::SyncBody"))))
-	 )
-    ;; do all <Add> commands.
-    ;;    (dolist (node (xpath-resolve syncnode "child::Add")
-    ;;		  nil)
-    ;;     (progn 
-    ;;	(bbdb-syncml-debug 1 'bbdb-syncml-process-sync-command "On <Add>: %S" (dom-node-name node))))
-    ;;    ;; do all <Replace> commands.
-    ;;    (dolist (node (xpath-resolve syncnode "child::Replace")
-    ;;		  nil)
-    ;;      (progn 
-    ;;	(bbdb-syncml-debug 1 'bbdb-syncml-process-sync-command "On <Replace>: %S" (dom-node-name node))))
-    ;;    ;; do all <Delete> commands.
-    ;;    (dolist (node (xpath-resolve syncnode "child::Delete")
-    ;;		  nil)
-    ;;     (progn 
-    ;;	(bbdb-syncml-debug 1 'bbdb-syncml-process-sync-command "On <Delete>: %S" (dom-node-name node))))
-    
-    (dolist (node (xpath-resolve syncnode "child::*")
-		  nil)
-      (bbdb-syncml-debug 3 'bbdb-syncml-process-sync-command "Child %S" (dom-node-name node)))
-    
-    ;; if processing of all children was succeccful, return a 200 for the <Sync> command as well.
-    ;; if processing of all children was _not_ sucessfull, i don't know what to return. read syncml standard.
-    (if (not (null all-ok))
-	(progn 
-	  (bbdb-syncml-debug 1 'bbdb-syncml-process-sync-command "All sync commands completed successfully. Adding <Status> for <Sync>-command.")
-	  (let* (;;(temp-doc (syncml-create-syncml-document))
-		 ;;(temp-node (dom-document-element temp-doc))
-		 (status-node 
-		  (syncml-create-status-command
-		   pkg5-doc
-		   (dom-node-text-content (car (xpath-resolve (dom-document-element syncml-response-doc) 
-							      "descendant::MsgID")))
-		   (dom-node-text-content (car (xpath-resolve syncnode "child::CmdID")))
-		   "Sync"
-		   (syncml-create-data-command pkg5-doc "200") 
-		   (syncml-create-target-command pkg5-doc 
-						 (dom-node-text-content 
-						  (car (xpath-resolve syncnode "child::Target/child::LocURI"))))
-		   (syncml-create-source-command pkg5-doc 
-						 (dom-node-text-content 
-						  (car (xpath-resolve syncnode "child::Source/child::LocURI")))))))
-	   	    
-	    (bbdb-syncml-debug 2 'bbdb-syncml-process-sync-command "created status node.")
-	    ;;(dom-node-append-child temp-node status-node)
-	    ;;(bbdb-syncml-debug 2 'bbdb-syncml-process-sync-command "Document is: %S." (dom-node-write-to-string status-node))
-	    ;;(dom-node-insert-before temp-syncbody-node 
-;;				    status-node 
-;;				    (dom-node-first-child temp-syncbody-node)))))
-	    
-    ;;	    (dom-node-test-new-child pkg5-syncbody-node status-node)
-	    (dom-node-append-child (car (xpath-resolve (dom-document-element pkg5-doc)
-						       "descendant::SyncBody"))
-				   status-node)
-	    (bbdb-syncml-debug 2 'bbdb-syncml-process-sync-command "finished.")
-	    )))))
-
-
-
-;;    temp-syncbody-node))
-
-;;	    )))))
 
 
   
-
+(defun bbdb-syncml-element-to-number (item)
+  "Returns ITEM as a number, whether it already is a number, or a string"
+  (if (stringp item)
+      (string-to-number item)
+    (car (list item))))
+  
 (provide 'bbdb-syncml)
+  

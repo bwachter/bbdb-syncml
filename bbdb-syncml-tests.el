@@ -1,19 +1,14 @@
-;; This buffer is for notes you don't want to save, and for Lisp evaluation.
-;; If you want to create a file, visit that file with C-x C-f,
-;; then enter the text in that file's own buffer.
-
-
-
-
 
 ;
 ; I AM HERE NOW
 ;
 (require 'bbdb-syncml)
+(require 'vcard)
 (require 'bbdb-vcard-export)
+(require 'bbdb-vcard)
 (require 'md5 "/home/jb/src/lisp/md5.el")
-(setq bbdb-syncml-debug-level 3
-      syncml-debug-level 3
+(setq bbdb-syncml-debug-level 2
+      syncml-debug-level 2
       bbdb-syncml-debug-duplicate-in-syncml-debug t
       syncml-host "http://binningsbo.homelinux.org:8080/multisync"
       syncml-target-locuri "http://binningsbo.homelinux.org:8080/multisync"
@@ -30,8 +25,164 @@
 (bbdb-syncml-synchronize)
 
 
+(car (bbdb-syncml-vcard-lookup-location-mapping "Mobile"))
 
-(encode-coding-string "hei" 'futf-8)
+(bbdb-syncml-vcard-get-bbdb-record-as-vcard-string (car (bbdb-records)))
+(car (bbdb-record-phones (car (bbdb-records))))
+
+(bbdb-phone-location (car (bbdb-record-phones (car (bbdb-records)))))
+
+(setq bbdb-syncml-pkg4-doc nil)
+
+
+(dom-node-write-to-string bbdb-syncml-pkg4-doc)
+(setq dummy-body-node (xpath-resolve (dom-document-element bbdb-syncml-pkg4-doc)
+				 "child::SyncML/child::SyncBody/Add']"))
+
+(setq pkg4-syncbody (xpath-resolve (dom-document-element bbdb-syncml-pkg4-doc)
+				 "descendant::SyncBody"))
+
+(setq pkg4-statuses (xpath-resolve (car pkg4-syncbody) "child::Status"))
+(setq pkg4-add-statuses (xpath-resolve (car pkg4-syncbody) "child::Status[child::Cmd='Add']"))
+
+(length pkg4-statuses)
+
+(dom-node-write-to-string (car pkg4-statuses))
+(dom-node-write-to-string pkg4-statuses)
+
+(mapconcat 'concat (list "12" "34" "45") " ")
+
+
+(dolist (grnode pkg4-statuses)
+  (message "x")
+  (if (dom-node-p grnode)
+      (message "yes")
+    (message "no"))
+  (message grnode)
+  (dom-node-write-to-string grnode))
+
+
+
+(
+
+
+(xpath-resolve dummy-body-node "Status[child::Cmd='Add']")
+
+(dolist (node (xpath-resolve (car dummy-body-node) "Status/SourceRef"))
+  (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response 
+		     "This is a <Status> in response to an <Add> with luid %s"
+		     (dom-node-text-content (xpath-resolve node "child::SourceRef"))))
+
+(dom-node-text-content (xpath-resolve bbdb-syncml-pkg4-doc "child::SourceRef"))
+
+
+
+(dolist (node (xpath-resolve (car dummy-body-node) "child::Status[child::Cmd='Add']"))
+  (bbdb-syncml-debug 1 'bbdb-syncml-process-modifications-response "This "))
+
+(bbdb-syncml-debug 1 'test (dom-node-write-to-string syncml-response-doc))
+
+
+
+
+
+
+;; DENNE SØKEFUNKSJONEN FUNGERER:
+
+(let ((notes (cons (intern "luid") "^5$")))
+	(bbdb-search (bbdb-records) nil nil nil notes))
+
+;; FRAMSTØYT PÅ Å ENDRE RECORD BASERT PÅ SØKEFUNKSJON.
+(apply 'bbdb-record-edit-field-internal 
+			 (let ((notes (cons (intern "luid") "^1$")))
+				 (bbdb-search (bbdb-records) nil nil nil notes))
+			 'luid)
+			 
+; slik kan ein endre ein property for ein gjeven bbdb-record)
+(let ((notes (cons (intern "luid") "^1$")))
+	((let ((node bbdb-search (bbdb-records) nil nil nil notes))
+		 (bbdb-record-putprop node 
+											 (if (string= "" string) nil string)))
+
+
+
+
+(bbdb-vcard-snarf "
+BEGIN:VCARD
+VERSION:2.1
+X-EVOLUTION-FILE-AS;CHARSET=UTF-8:Binningsbø, Jørgen
+FN;CHARSET=UTF-8:Jørgen Binningsbø¸
+N;CHARSET=UTF-8:Binningsbø¸;Jørgen
+TEL;CELL:12345678
+TEL;HOME:87654321
+EMAIL;INTERNET:jb@pvv.org
+UID:pas-id-4012D9CE00000004
+END:VCARD
+")
+
+
+(bbdb-vcard-format-entry "BEGIN:VCARD
+VERSION:2.1
+FN:Tarek Yousef
+N:Yousef;Tarek;;;
+END:VCARD")
+
+
+(vcard-values (vcard-parse-string "
+BEGIN:VCARD
+VERSION:2.1
+X-EVOLUTION-FILE-AS;CHARSET=UTF-8:BinningsbÃ¸, JÃ¸rgen
+FN;CHARSET=UTF-8:JÃ¸rgen BinningsbÃ¸
+N;CHARSET=UTF-8:BinningsbÃ¸;JÃ¸rgen
+TEL;CELL:12345678
+TEL;HOME:87654321
+EMAIL;INTERNET:jb@pvv.org
+UID:pas-id-4012D9CE00000004
+END:VCARD
+") (list "tel"))
+
+
+(bbdb-vcard-phonevec (vcard-ref (vcard-parse-string "
+BEGIN:VCARD
+VERSION:2.1
+X-EVOLUTION-FILE-AS;CHARSET=UTF-8:BinningsbÃ¸, JÃ¸rgen
+FN;CHARSET=UTF-8:JÃ¸rgen BinningsbÃ¸
+N;CHARSET=UTF-8:BinningsbÃ¸;JÃ¸rgen
+TEL:12345678
+TEL:55555555
+TEL;HOME:87654321
+EMAIL;INTERNET:jb@pvv.org
+UID:pas-id-4012D9CE00000004
+END:VCARD
+") (list "tel")))
+
+(list "hei" "Hå")
+(vector "hei" "hå")
+(cons "Hei")
+
+(length (list "hei" "Hå"))
+(length (vector "hei" "hå"))
+(length (cons "Hei" "hå"))
+
+
+
+(bbdb-record-set-firstname (car (bbdb-records)) "jøø.")
+(bbdb-record-putprop
+ (bbdb-create-internal "magnhild sægrov" "apalløkka" "ms@underdusken.no" nil nil nil)
+ 'luid
+ "15")
+
+
+
+
+
+
+
+
+
+
+
+(encode-coding-string "hei" 'utf-8)
 
 (insert bbdb-syncml-package-5-doc
 
@@ -136,32 +287,9 @@ wlTB98Ptd0oT5eovYGGGgg==
 (bbdb-syncml-get-modified-records)
 
 
-;; DENNE SØKEFUNKSJONEN FUNGERER:
-
-(let ((notes (cons (intern "luid") "^5$")))
-	(bbdb-search (bbdb-records) nil nil nil notes))
-
-;; FRAMSTØYT PÅ Å ENDRE RECORD BASERT PÅ SØKEFUNKSJON.
-(apply 'bbdb-record-edit-field-internal 
-			 (let ((notes (cons (intern "luid") "^1$")))
-				 (bbdb-search (bbdb-records) nil nil nil notes))
-			 'luid)
-			 
-; slik kan ein endre ein property for ein gjeven bbdb-record)
-(let ((notes (cons (intern "luid") "^1$")))
-	((let ((node bbdb-search (bbdb-records) nil nil nil notes))
-		 (bbdb-record-putprop node 
-											 (if (string= "" string) nil string)))
+(bbdb-record-getprop (car (bbdb-records)) 'luid)
 
 
-
-
-
-
-
-
-(bbdb-record-set-firstname (car (bbdb-records)) "jøø.")
-(bbdb-create-internal "magnhild sægrov" "apalløkka" "ms@underdusken.no" nil nil nil)
 (bbdb-save-db)
 
 (bbdb-search (bbdb-records) nil nil nil )

@@ -1,5 +1,5 @@
 ;;; syncml-commands.el -- An elisp implementation of a SyncML client. This file contains the syncml commands
-;; $Id: syncml-commands.el,v 1.5 2004/01/25 11:57:14 joergenb Exp $
+;; $Id: syncml-commands.el,v 1.6 2004/06/08 20:21:08 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -46,6 +46,7 @@
 ;; syncml-create-syncml-document 
 (defun syncml-create-syncml-document ()
   "*Creates a new DOM document having top-level element <SyncML> and returning this element node"
+  (syncml-debug 3 'syncml-create-syncml-command "Function started.")
   (let* ((syncmldoc (make-dom-document :name "MySyncMLDocument"
 				       :type dom-document-node))
 	 (syncmlelement (dom-document-create-element syncmldoc "SyncML")))
@@ -57,6 +58,7 @@
 ;; syncml-create-synchdr-command
 (defun syncml-create-synchdr-command (ownerdoc targetnode sourcenode &optional crednode metanode)
   "Returns a new <SyncHdr> DOM node. MsgID is incremented."
+  (syncml-debug 3 'syncml-create-synchdr-command "Function started.")
   (syncml-increase-msgid)
   (let* ((synchdrnode (dom-document-create-element ownerdoc "SyncHdr"))
 	 )
@@ -77,6 +79,7 @@
   "*Creates a DOM element node corresponding to an empty <SyncBody> command. This node must be filled with children.
 
 XML declaration: ((Alert | Atomic | Copy | Exec | Get | Map | Put | Results | Search | Sequence | Status | Sync | Add | Replace | Delete)+, Final?)"
+  (syncml-debug 3 'syncml-create-syncbody-command "Function Started.")
   (let* ((syncbodynode (dom-document-create-element ownerdoc "SyncBody"))
 	 )
     syncbodynode))
@@ -93,7 +96,7 @@ XML declaration: ((Alert | Atomic | Copy | Exec | Get | Map | Put | Results | Se
 
 MYDATA is a string containing the #PCDATA content.
 Example: <Data>212<Data>   Indicates a successful authentication."
-  (syncml-debug 3 'syncml-create-data-command "Triggered.")
+  (syncml-debug 3 'syncml-create-data-command "Function started.")
   (let* ((datanode (dom-document-create-element ownerdoc "Data")))
     (cond ((stringp mydata)
 	   (dom-node-append-child datanode (dom-document-create-text-node ownerdoc mydata)))
@@ -114,6 +117,7 @@ Example: <Data>212<Data>   Indicates a successful authentication."
   "*Returns a DOM node corresponding to a SyncML <Meta> command.
 
 METADATA is either a string or a dom-node. if a dom-node, it's owner-document should be identical to OWNERDOC."
+  (syncml-debug 3 'syncml-create-meta-command "Function started.")
   (let* ((metanode (dom-document-create-element ownerdoc "Meta")))
     (cond ((stringp metadata)
 	   (dom-node-append-child metanode (dom-document-create-text-node ownerdoc metadata)))
@@ -127,6 +131,7 @@ METADATA is either a string or a dom-node. if a dom-node, it's owner-document sh
 ;; 
 (defun syncml-create-item-command (ownerdoc &optional targetnode sourcenode metanode datanode)
   "*Returns a DOM element node corresponding to a SyncML <Item> command"
+  (syncml-debug 3 'syncml-create-item-command "Function started.")
   (let* ((itemnode (dom-document-create-element ownerdoc "Item")))
     (if (not (null targetnode))	
 	(dom-node-append-child itemnode targetnode))
@@ -141,7 +146,7 @@ METADATA is either a string or a dom-node. if a dom-node, it's owner-document sh
 
 ;; syncml-create-target-command () 
 (defun syncml-create-target-command (ownerdoc locuri &optional locname)
-  (syncml-debug 3 'syncml-create-target-command "Triggered.")
+  (syncml-debug 3 'syncml-create-target-command "Function started.")
   (let* ((targetnode (dom-document-create-element ownerdoc "Target"))
 	 (locurinode (dom-document-create-element ownerdoc "LocURI"))
 	 (locuritext (dom-document-create-text-node ownerdoc locuri))
@@ -156,7 +161,7 @@ METADATA is either a string or a dom-node. if a dom-node, it's owner-document sh
 
 ;; syncml-create-source-command () 
 (defun syncml-create-source-command (ownerdoc locuri &optional locname)
-  (syncml-debug 3 'syncml-create-source-command "Triggered.")
+  (syncml-debug 3 'syncml-create-source-command "Function started.")
   (let* ((sourcenode (dom-document-create-element ownerdoc "Source"))
 	 (locurinode (dom-document-create-element ownerdoc "LocURI"))
 	 (locuritext (dom-document-create-text-node ownerdoc locuri))
@@ -169,6 +174,14 @@ METADATA is either a string or a dom-node. if a dom-node, it's owner-document sh
 	  (dom-node-append-child sourcenode locnamenode)))
     sourcenode))
 
+;; create-sourceref-command
+(defun syncml-create-sourceref-command (ownerdoc pcdata)
+  (syncml-debug 3 'syncml-create-source-command "Function started.")
+  (let* ((sourcerefnode (dom-document-create-element ownerdoc "SourceRef"))
+	 (sourcereftextnode (dom-document-create-text-node ownerdoc pcdata)))
+    (dom-node-append-child sourcerefnode sourcereftextnode)
+    sourcerefnode))
+
 
 ;; syncml-create-cred-command ()
 (defun syncml-create-cred-command (ownerdoc)
@@ -176,6 +189,7 @@ METADATA is either a string or a dom-node. if a dom-node, it's owner-document sh
 
 Parent Elements: Add, Alert, Copy, Delete, Exec, Get, Put, Map, Replace, Search, Status, Sync, SyncHdr
 XML declaration: (Meta?, Data)"
+  (syncml-debug 3 'syncml-create-cred-command "Function started.")
   (let* ((crednode (dom-document-create-element ownerdoc "Cred")))
     (dom-node-append-child crednode (syncml-create-meta-command 
 				     ownerdoc
@@ -193,7 +207,7 @@ XML declaration: (Meta?, Data)"
   "Returns a string with the <Sync> command 
 
 XML definition: CmdID, NoResp?, Cred?, Target?, Source?, Meta?, NumberOfChanges?, (Add | Atomic | Copy | Delete | Replace | Sequence)*"
-
+  (syncml-debug 3 'syncml-create-sync-command "Function started.")
   (let* ((syncnode (dom-document-create-element ownerdoc "Sync"))) 
     (dom-node-append-child syncnode (syncml-create-cmdid-command ownerdoc)) 
     (if (not (null noresp))
@@ -216,6 +230,7 @@ XML definition: CmdID, NoResp?, Cred?, Target?, Source?, Meta?, NumberOfChanges?
   "Returns a string with the <Add> command 
 XML definition: 
 CmdID, NoResp?, Cred?, Meta?, Item+)"
+  (syncml-debug 3 'syncml-create-add-command "Function started.")
   (let* ((addnode (dom-document-create-element ownerdoc "Add")))
     (dom-node-append-child addnode (syncml-create-cmdid-command ownerdoc)) 
     (if (not (null noresp))
@@ -226,7 +241,47 @@ CmdID, NoResp?, Cred?, Meta?, Item+)"
 	(dom-node-append-child addnode metanode))
     (dom-node-append-child addnode itemnode)
     addnode))
+
+
+;; syncml-create-replace-command ()
+;; 
+;; Returns a DOM noe corresponding to the SyncML <Replace> command.
+;; XML definition: CmdID, NoResp?, Cred?, Meta?, Item+)
+(defun syncml-create-replace-command (ownerdoc itemnode &optional metanode crednode noresp)
+  "Returns a string with the <Replace> command 
+XML definition: 
+CmdID, NoResp?, Cred?, Meta?, Item+)"
+  (syncml-debug 3 'syncml-create-replace-command "Function started.")
+  (let* ((replacenode (dom-document-create-element ownerdoc "Replace")))
+    (dom-node-append-child replacenode (syncml-create-cmdid-command ownerdoc)) 
+    (if (not (null noresp))
+	(dom-node-append-child replacenode (dom-document-create-element ownerdoc "NoResp")))
+    (if (not (null crednode))
+	(dom-node-append-child replacenode crednode))
+    (if (not (null metanode))
+	(dom-node-append-child replacenode metanode))
+    (dom-node-append-child replacenode itemnode)
+    replacenode))
     
+
+;; syncml-create-delete-command ()
+;; 
+;; Returns a DOM noe corresponding to the SyncML <Delete> command.
+;; XML definition: (CmdID, NoResp?, Archive?, SftDel?, Cred?, Meta?, Item+)
+(defun syncml-create-delete-command (ownerdoc itemnode &optional metanode crednode noresp archivenode sftdelnode)
+  "Returns a string with the <Delete> command 
+XML definition: (CmdID, NoResp?, Archive?, SftDel?, Cred?, Meta?, Item+)"
+  (syncml-debug 3 'syncml-create-delete-command "Function started.")
+  (let* ((deletenode (dom-document-create-element ownerdoc "Delete")))
+    (dom-node-append-child deletenode (syncml-create-cmdid-command ownerdoc)) 
+    (if (not (null noresp))
+	(dom-node-append-child deletenode (dom-document-create-element ownerdoc "NoResp")))
+    (if (not (null crednode))
+	(dom-node-append-child deletenode crednode))
+    (if (not (null metanode))
+	(dom-node-append-child deletenode metanode))
+    (dom-node-append-child deletenode itemnode)
+    deletenode))
 
 
 ;; syncml-create-put-command ()
@@ -236,6 +291,7 @@ CmdID, NoResp?, Cred?, Meta?, Item+)"
 (defun syncml-create-put-command (ownerdoc itemnode &optional metanode crednode noresp)
   "Returns a string with the <Put> command 
 XML definition: (CmdID, NoResp?, Lang?, Cred?, Meta?, Item+) "
+  (syncml-debug 3 'syncml-create-put-command "Function started.")
   (let* ((putnode (dom-document-create-element ownerdoc "Put")))
     (dom-node-append-child putnode (syncml-create-cmdid-command ownerdoc)) 
     (if (not (null noresp))
@@ -257,7 +313,7 @@ XML definition: (CmdID, NoResp?, Lang?, Cred?, Meta?, Item+) "
   "Returns a string with the <Status> command 
 XML definition: 
 CmdID, MsgRef, CmdRef, Cmd, TargetRef*, SourceRef*, Cred?, Chal?, Data, Item*)"
-  (syncml-debug 3 'syncml-create-status-command "Triggered")
+  (syncml-debug 3 'syncml-create-status-command "Function started")
   (let* ((statusnode (dom-document-create-element ownerdoc "Status"))
 	 (msgrefnode (syncml-create-msgref-command ownerdoc msgref))
 	 (cmdrefnode (syncml-create-cmdref-command ownerdoc cmdref))
@@ -286,6 +342,7 @@ Data: When specified in an Alert, the element type specifies the type of alert.
 Item: When specified in an Alert, the element type specifies the
       parameters for the alert type. (Target?, Source?, Meta?, Data?)
 "
+  (syncml-debug 3 'syncml-create-alert-command "Function started")
   (let* ((alertnode (dom-document-create-element ownerdoc "Alert"))
 	 (cmdidnode (syncml-create-cmdid-command ownerdoc)))
     (dom-node-append-child alertnode cmdidnode)
@@ -302,6 +359,7 @@ Item: When specified in an Alert, the element type specifies the
 ;;
 (defun syncml-create-cmdid-command (ownerdoc)
   "Increments SYNCML-CURRENT-CMDID and returns a <CmdID> node."
+  (syncml-debug 3 'syncml-create-cmdid-command "Function started")
   (syncml-increase-cmdid)
   (let* ((cmdidnode (dom-document-create-element ownerdoc "CmdID")))
     (dom-node-append-child cmdidnode (dom-document-create-text-node ownerdoc syncml-current-cmdid))
@@ -311,6 +369,7 @@ Item: When specified in an Alert, the element type specifies the
 ;;
 (defun syncml-create-sessionid-command (ownerdoc)
   "Returns a <SessionID> node.  Incrementing the sessionid is not done, should be set before sync initialization. (package #1)"
+  (syncml-debug 3 'syncml-create-sessionid-command "Function started")
   (let* ((sessionidnode (dom-document-create-element ownerdoc "SessionID")))
     (dom-node-append-child sessionidnode (dom-document-create-text-node ownerdoc syncml-current-sessionid))
     sessionidnode))
@@ -329,7 +388,7 @@ Item: When specified in an Alert, the element type specifies the
 ;;
 (defun syncml-create-cmd-command (ownerdoc cmd)
   "Returns a <Cmd> node. "
-  (syncml-debug 3 'syncml-create-cmd-command "Triggered.")
+  (syncml-debug 3 'syncml-create-cmd-command "Function started.")
   (let* ((cmdnode (dom-document-create-element ownerdoc "Cmd")))
     (dom-node-append-child cmdnode (dom-document-create-text-node ownerdoc cmd))
     cmdnode))
@@ -338,6 +397,7 @@ Item: When specified in an Alert, the element type specifies the
 ;;
 (defun syncml-create-final-command (ownerdoc)
   "Returns a <Final> node. "
+  (syncml-debug 3 'syncml-create-final-command "Function started.")
   (let* ((finalnode (dom-document-create-element ownerdoc "Final")))    
     finalnode))
 
@@ -365,6 +425,7 @@ Item: When specified in an Alert, the element type specifies the
 ;;
 (defun syncml-create-verdtd-command (ownerdoc)
   "Returns a <VerDTD> node.  We only support 1.1"
+  (syncml-debug 3 'syncml-create-verdtd-command "Function started.")
   (let* ((verdtdnode (dom-document-create-element ownerdoc "VerDTD")))
     (dom-node-append-child verdtdnode (dom-document-create-text-node ownerdoc "1.1"))
     verdtdnode))
@@ -374,6 +435,7 @@ Item: When specified in an Alert, the element type specifies the
 ;;
 (defun syncml-create-verproto-command (ownerdoc)
   "Returns a <VerProto> node.  We only support 1.1"
+  (syncml-debug 3 'syncml-create-verproto-command "Function started.")
   (let* ((verprotonode (dom-document-create-element ownerdoc "VerProto")))
     (dom-node-append-child verprotonode (dom-document-create-text-node ownerdoc "SyncML/1.1"))
     verprotonode))
@@ -398,6 +460,7 @@ Item: When specified in an Alert, the element type specifies the
 
 MYFORMAT is a string containing the #PCDATA content.
 Example: <Format>212<Format>   Indicates a successful authentication."
+  (syncml-debug 3 'syncml-create-metinf-format-command "Function started.")
   (let* ((formatnode (dom-document-create-element ownerdoc "Format"))
 	 (formatattr (dom-document-create-attribute ownerdoc "xmlns"))
 	 (textnode (dom-document-create-text-node ownerdoc myformat)))
@@ -417,6 +480,7 @@ Example: <Format>212<Format>   Indicates a successful authentication."
 
 TYPEDATA is a string containing the #PCDATA content.
 Example: <Type>212<Type>   Indicates a successful authentication."
+  (syncml-debug 3 'syncml-create-metinf-type-command "Function started.")
   (let* ((typenode (dom-document-create-element ownerdoc "Type"))
 	 (typeattr (dom-document-create-attribute ownerdoc "xmlns"))
 	 (textnode (dom-document-create-text-node ownerdoc typedata)))
@@ -436,6 +500,7 @@ Example: <Type>212<Type>   Indicates a successful authentication."
 
 ANCHORDATA is a string containing the #PCDATA content.
 Example: <Anchor>212<Anchor>   Indicates a successful authentication."
+  (syncml-debug 3 'syncml-create-metinf-anchor-command "Function started.")
   (let* ((anchornode (dom-document-create-element ownerdoc "Anchor"))
 	 (anchorattr (dom-document-create-attribute ownerdoc "xmlns"))
 	 (lastnode (dom-document-create-element ownerdoc "Last" ))
@@ -471,6 +536,7 @@ Example: <Anchor>212<Anchor>   Indicates a successful authentication."
 ;;
 (defun syncml-create-devinf-devinf-command (ownerdoc datastorenode) 
   "*Returns a DOM node corresponding to a SyncML <DevInf> command."
+
   (let* ((devinfnode (dom-document-create-element ownerdoc "DevInf"))
 	 (devinfattr (dom-document-create-attribute ownerdoc "xmlns")))
     (setf (dom-attr-value devinfattr) "syncml:devinf"
