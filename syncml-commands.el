@@ -1,5 +1,5 @@
 ;;; syncml-commands.el -- An elisp implementation of a SyncML client. This file contains the syncml commands
-;; $Id: syncml-commands.el,v 1.6 2004/06/08 20:21:08 joergenb Exp $
+;; $Id: syncml-commands.el,v 1.7 2005/04/03 20:29:11 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -346,6 +346,8 @@ Item: When specified in an Alert, the element type specifies the
   (let* ((alertnode (dom-document-create-element ownerdoc "Alert"))
 	 (cmdidnode (syncml-create-cmdid-command ownerdoc)))
     (dom-node-append-child alertnode cmdidnode)
+    (if (not (null datanode))
+	(dom-node-append-child alertnode datanode))
     (if (not (null norespnode))
 	(dom-node-append-child alertnode norespnode))
     (if (not (null crednode))

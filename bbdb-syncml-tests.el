@@ -21,9 +21,12 @@
       syncml-use-md5 'nil)
 (global-set-key [?\C-c ?\C-b ?\C-s] 'bbdb-syncml-synchronize)
 (global-set-key (kbd "C-c C-x s") 'bbdb-syncml-synchronize)
+(global-set-key (kbd "C-c C-x S") 'bbdb-syncml-synchronize-slow)
 
 (bbdb-syncml-synchronize)
 
+
+(describe-variable bbdb-change-hook)q
 
 (car (bbdb-syncml-vcard-lookup-location-mapping "Mobile"))
 

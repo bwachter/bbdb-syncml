@@ -1,5 +1,5 @@
 ;;; syncml.el -- An elisp implementation of a SyncML client.
-;; $Id: syncml.el,v 1.8 2004/06/08 20:21:08 joergenb Exp $
+;; $Id: syncml.el,v 1.9 2005/04/03 20:29:11 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -126,10 +126,10 @@ from 1 within each unique session."
 The response from server is stored in the SYNCML-RESPONSE-DOC variable, and it is the duty of 
 the calling function to carry on sensible actions based on this response."
   ;; reset the slow-sync flag.
-  (setq syncml-doing-slow-sync nil)
+  (setq syncml-doing-slow-sync slow-sync)
   (syncml-create-sessionid) 
   (setq syncml-next-respuri nil)
-  (syncml-send-message-with-curl (syncml-header t)))
+  (syncml-send-message-with-curl (syncml-header slow-sync)))
 
 
 
