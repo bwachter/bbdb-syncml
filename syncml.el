@@ -1,5 +1,5 @@
 ;;; syncml.el -- An elisp implementation of a SyncML client.
-;; $Id: syncml.el,v 1.4 2003/10/27 19:51:35 joergenb Exp $
+;; $Id: syncml.el,v 1.5 2003/11/22 23:42:27 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -56,7 +56,7 @@
 (defvar syncml-target-locuri "binningsbo.homelinux.org"
   "*The target host URI.")
 
-(defvar syncml-source-locuri "myBBDBdatabase"
+(defvar syncml-source-locuri "bbdb@mymachine"
   "*The source host URI.)")
 
 (defvar syncml-target-database "db"

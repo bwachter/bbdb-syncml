@@ -1,6 +1,6 @@
 ;; dom-loadsave.el -- An minimalist implementation of the DOM Level 3 
 ;;                    Load and Save extension.
-;; $Id: dom-loadsave.el,v 1.3 2003/10/27 19:51:35 joergenb Exp $
+;; $Id: dom-loadsave.el,v 1.4 2003/11/22 23:42:27 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -67,7 +67,7 @@ child nodes."
      ;; check for attributes
      (if (dom-node-has-attributes node)	 
 	 (let (res)
-	   (dolist (innernode (dom-node-attributes grrr) res)
+	   (dolist (innernode (dom-node-attributes node) res)
 	     (if (dom-attr-p innernode)
 		 (push (concat (if (symbolp (dom-node-name innernode))
 				   (symbol-name (dom-node-name innernode))
@@ -79,43 +79,51 @@ child nodes."
 			       "'")
 		       res)))
 	   (mapconcat 'concat (cons " " res) " ")))
-;;	 "yes-attribute")
-;;	 (dolist (innernode (dom-node-attributes node))
-;;	   (if (dom-attr-p innernode)
-;;	       (concat innernode-name "='" innernode-value "'"))))
-     ">"
-     (if (dom-element-p (dom-node-first-child node))
-	 "\n")
-     ;; if the node has any children, process them first
+     ;;	 "yes-attribute")
+     ;;	 (dolist (innernode (dom-node-attributes node))
+     ;;	   (if (dom-attr-p innernode)
+     ;;	       (concat innernode-name "='" innernode-value "'"))))
+
      (if (dom-node-has-child-nodes node)
 	 (progn 
-	   (setq dom-loadsave-indent-level (+ 1 dom-loadsave-indent-level))
-	   (mapconcat 'dom-node-write-to-string-inner (dom-node-child-nodes node) ""))
-       "")
+	   (concat 
+	    ">"
+	    (if (dom-element-p (dom-node-first-child node))
+		"\n")
+	    ;; if the node has any children, process them first
+	    (if (dom-node-has-child-nodes node)
+		(progn 
+		  (setq dom-loadsave-indent-level (+ 1 dom-loadsave-indent-level))
+		  (mapconcat 'dom-node-write-to-string-inner (dom-node-child-nodes node) ""))
+	      "")
+	    
+	    ;; add the closing tag
+	    ;; if the node's first child was an element-node, then we're supposed to write the end tag on a new line,
+	    ;; and unindented one step according to the level of the children.
+	    (if (dom-element-p (dom-node-first-child node))
+		(progn
+		  ;;	   (setq dom-loadsave-indent-level (1- dom-loadsave-indent-level))
+		  (make-string (* (1- dom-loadsave-indent-level) dom-loadsave-indent) (string-to-char " "))))
+	    "</" 
+	    (progn 
+	      (if (>= dom-loadsave-indent-level 1)
+		  (setq dom-loadsave-indent-level (1- dom-loadsave-indent-level))
+		(setq dom-loadsave 1))
+	      (if (symbolp (dom-node-name node))
+		  (symbol-name (dom-node-name node))
+		(dom-node-name node)))
+	    ">\n"))
+       "/>\n")))
 
-     ;; add the closing tag
-     ;; if the node's first child was an element-node, then we're supposed to write the end tag on a new line,
-     ;; and unindented one step according to the level of the children.
-     (if (dom-element-p (dom-node-first-child node))
-	 (progn
-;;	   (setq dom-loadsave-indent-level (1- dom-loadsave-indent-level))
-	   (make-string (* (1- dom-loadsave-indent-level) dom-loadsave-indent) (string-to-char " "))))
-     "</" 
-     (progn 
-       (if (>= dom-loadsave-indent-level 1)
-	   (setq dom-loadsave-indent-level (1- dom-loadsave-indent-level))
-	 (setq dom-loadsave 1))
-       (if (symbolp (dom-node-name node))
-	   (symbol-name (dom-node-name node))
-	 (dom-node-name node)))
-     ">\n"))
    ;; a TEXT node simply returns it's value.
    ((dom-text-p node)
     (if (numberp (dom-node-value node))
 	(number-to-string (dom-node-value node))
       (dom-node-value node)))
+   
+   ;; insert other node types here. (none applicable, attribute nodes are dealt with above).
    );; end of cond
   )
-
+  
 
 (provide 'dom-loadsave)

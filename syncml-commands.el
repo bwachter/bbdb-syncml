@@ -1,5 +1,5 @@
 ;;; syncml-commands.el -- An elisp implementation of a SyncML client. This file contains the syncml commands
-;; $Id: syncml-commands.el,v 1.2 2003/10/27 19:51:35 joergenb Exp $
+;; $Id: syncml-commands.el,v 1.3 2003/11/22 23:42:27 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -93,14 +93,13 @@ XML declaration: ((Alert | Atomic | Copy | Exec | Get | Map | Put | Results | Se
 
 MYDATA is a string containing the #PCDATA content.
 Example: <Data>212<Data>   Indicates a successful authentication."
-  (let* ((datanode (dom-document-create-element ownerdoc "Data"))
-	 (textnode (dom-document-create-text-node ownerdoc mydata)))
-    (dom-node-append-child datanode textnode)
+  (let* ((datanode (dom-document-create-element ownerdoc "Data")))
+    (cond ((stringp mydata)
+	   (dom-node-append-child datanode (dom-document-create-text-node ownerdoc mydata)))
+	  ((dom-node-p mydata)
+	   (dom-node-append-child datanode mydata))
+	  (t (error "Neither string nor dom-node given to the Data command.")))
     datanode))
-
-
-
-
 
 ;; syncml-create-meta-command ()
 ;;
@@ -111,16 +110,16 @@ Example: <Data>212<Data>   Indicates a successful authentication."
 ;; The <Meta> tag can have element types as children, provided they declare namespace.
 ;; Example: <Meta><Data>   Indicates a successful authentication
 (defun syncml-create-meta-command (ownerdoc metadata) 
-  "*Returns a DOM node corresponding to a SyncML <Data> command.
+  "*Returns a DOM node corresponding to a SyncML <Meta> command.
 
 METADATA is either a string or a dom-node. if a dom-node, it's owner-document should be identical to OWNERDOC."
-  (let* ((datanode (dom-document-create-element ownerdoc "Meta")))
+  (let* ((metanode (dom-document-create-element ownerdoc "Meta")))
     (cond ((stringp metadata)
-	   (dom-node-append-child datanode (dom-document-create-text-node ownerdoc metadata)))
+	   (dom-node-append-child metanode (dom-document-create-text-node ownerdoc metadata)))
 	  ((dom-node-p metadata)
-	   (dom-node-append-child datanode metadata))
+	   (dom-node-append-child metanode metadata))
 	  (t (error "Neither string nor dom-node given to the Meta command.")))
-    datanode))
+    metanode))
 
 
 ;; syncml-create-item-command ()
