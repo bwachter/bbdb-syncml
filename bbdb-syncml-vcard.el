@@ -1,5 +1,5 @@
 ;;; bbdb-syncml-vcard.el -- VCard routines for the bbdb-syncml package.
-;; $Id: bbdb-syncml-vcard.el,v 1.1 2005/04/03 20:29:11 joergenb Exp $
+;; $Id: bbdb-syncml-vcard.el,v 1.2 2006/04/06 20:37:05 joergenb Exp $
 
 ;; Copyright (C) 2003-2004 Jørgen Binningsbø 
 
@@ -29,7 +29,7 @@
 
 ;;; Commentary:
 
-;; Much of this package is taken from bbdb-vcard-export located in the contrib/ folder of the bbdb distribution.
+;; This is a fork of bbdb-vcard-export located in the contrib/ folder of the bbdb distribution.
 
 
 (defun bbdb-syncml-vcard-get-bbdb-record-as-vcard-string (record)
@@ -84,11 +84,20 @@
     ("home"   "HOME")
     ("heime"  "HOME")
     ("Heime"  "HOME")
+    ("Voice"  "VOICE")
+    ("voice"  "VOICE")
+    ("work"   "WORK")
     ))
 
 (defun bbdb-syncml-vcard-lookup-location-mapping (location)
   "Returns the text associated with the BBDB phone location LOCATION."
-  (car (cdr (assoc location bbdb-syncml-vcard-phone-location-mappings))))
+
+  (let (tmp (car (cdr (assoc location bbdb-syncml-vcard-phone-location-mappings))))
+    (if (null tmp)
+	(setq tmp "VOICE"))
+    tmp))
+
+
 
 (provide 'bbdb-syncml-vcard)	 
 		  

@@ -1,5 +1,5 @@
 ;;; syncml.el -- An elisp implementation of a SyncML client.
-;; $Id: syncml.el,v 1.9 2005/04/03 20:29:11 joergenb Exp $
+;; $Id: syncml.el,v 1.10 2006/04/06 20:37:05 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -37,8 +37,8 @@
 ;; xml-rpc.el by Daniel Lundin
 
 (require 'xml)
-(require 'url)
-(require 'url-util)
+;;(require 'url)
+;;(require 'url-util)
 (require 'dom)
 (require 'dom-loadsave)
 (require 'xpath)
@@ -107,7 +107,7 @@ The value is currently just a random number.
 At the same time, MsgID is set to 1, since MsgID shall be a number increasing 
 from 1 within each unique session."
   (setq syncml-current-sessionid (abs (random t)))
-  (setq syncml-current-msgid 1)
+  (setq syncml-current-msgid 0)
   (syncml-debug 1 'syncml "Created session id: %S" syncml-current-sessionid))
 
 (defun syncml-increase-msgid (&optional sessionid) 
@@ -136,7 +136,9 @@ the calling function to carry on sensible actions based on this response."
 
 
 (defun syncml-send-message-with-curl (doc &optional respuri)
-  "This function sends a Document Object Model (DOM) document DOC to the syncml server, using curl (http://curl.haxx.se/) as a bearer. 
+  "
+This function sends a Document Object Model (DOM) document DOC to the syncml server, 
+using curl (http://curl.haxx.se/) as a bearer.  
 The response from the server is stored in the syncml-response-doc variable."
 
   (syncml-debug 3 'syncml-send-message-with-curl "Triggered")
@@ -148,6 +150,7 @@ The response from the server is stored in the syncml-response-doc variable."
   (set-buffer (get-buffer-create syncml-transmit-buffername))
   (erase-buffer)
   (setq syncml-response-doc nil)
+  (setq syncml-response-xml nil)
   
   ;; insert an xml representation of the DOM
   (insert (dom-node-write-to-string doc))
@@ -160,7 +163,7 @@ The response from the server is stored in the syncml-response-doc variable."
 	     (call-process "curl" nil syncml-response-buffername nil 
 			   "-silent"
 			   "-H"
-			   "Content-Type: application/vnd.syncml+xml; charset=\"UTF-8\""
+			   "Content-Type: application/vnd.syncml+xml;charset=UTF-8"
 			   "--data-binary" 
 			   (encode-coding-string (concat
 						  "<?xml version='1.0' encoding='UTF-8' ?>"
@@ -171,7 +174,7 @@ The response from the server is stored in the syncml-response-doc variable."
 	   (call-process "curl" nil syncml-response-buffername nil 
 			 "-silent"
 			 "-H"
-			 "Content-Type: application/vnd.syncml+xml; charset=\"UTF-8\""
+			 "Content-Type: application/vnd.syncml+xml;charset=UTF-8"
 			 "--data-binary" 
 			 (encode-coding-string (concat
 						"<?xml version='1.0' encoding='UTF-8' ?>"
@@ -190,6 +193,7 @@ The response from the server is stored in the syncml-response-doc variable."
     (syncml-debug 3 'syncml-send-message-with-curl "UTF-8 decoded response:\n %S" (decode-coding-string (buffer-string) 'utf-8))  
     ;; Process the buffer SYNCML-BUFFER. Builds up a DOM tree and stores it in syncml-response-doc."
     (set-buffer (get-buffer-create (concat syncml-response-buffername "-utf8")))
+    (erase-buffer)
 ;;    (insert (decode-coding-string temp-string 'utf-8))
     (insert temp-string)
     (syncml-debug 3 'syncml-send-message-with-curl "Contents of syncml-response-buffer-utf8: %S" (buffer-string))
@@ -201,6 +205,7 @@ The response from the server is stored in the syncml-response-doc variable."
     (move-to-column 0)
   
     ;; Parse the rest of the buffer and store result in SYNCML-RESPONSE-DOC
+    (setq syncml-response-xml (buffer-substring (point) (point-max)))
     (setq syncml-response-doc 
 	  (dom-make-document-from-xml (car (xml-parse-region (point) (point-max)))))
   
@@ -213,7 +218,7 @@ The response from the server is stored in the syncml-response-doc variable."
     (erase-buffer)
     (syncml-debug 3 'syncml-send-message-with-curl "<RespURI> is %S" syncml-next-respuri)
     (syncml-debug 3 'syncml-send-message-with-curl "Function finished.")))
-
+            
   
 (defun syncml-header (&optional slow-sync)  
   "Returns a syncml header <SyncHdr> tag.  If arguments are supplied, they
@@ -228,7 +233,10 @@ XML Definition: SyncHdr: (VerDTD, VerProto, SessionID, MsgID, Target, Source, Re
 		       syncml-transmit-doc 
 		       (syncml-create-target-command syncml-transmit-doc syncml-target-locuri)
 		       (syncml-create-source-command syncml-transmit-doc syncml-source-locuri)
-		       (syncml-create-cred-command syncml-transmit-doc)))
+		       (syncml-create-cred-command syncml-transmit-doc)
+		       (syncml-create-meta-command syncml-transmit-doc 
+						   (syncml-create-metinf-maxmsgsize-command 
+						    syncml-transmit-doc))))
 	 ;; the <SyncBody>
 	 (syncbodynode (syncml-create-syncbody-command syncml-transmit-doc))
 	 ;; the <Alert> command
@@ -246,11 +254,12 @@ XML Definition: SyncHdr: (VerDTD, VerProto, SessionID, MsgID, Target, Source, Re
 						   (syncml-create-metinf-anchor-command syncml-transmit-doc)))))
 	 (devinf-data-node (syncml-create-data-command
 			    syncml-transmit-doc
-			    (syncml-create-devinf-devinf-command
+			    (syncml-create-devinf-devinf-command 
 			     syncml-transmit-doc
 			     (syncml-create-devinf-datastore-command
 			      syncml-transmit-doc
 			      (syncml-create-devinf-sourceref-command syncml-transmit-doc syncml-source-database)
+			      (syncml-create-devinf-maxguidsize-command syncml-transmit-doc "32")
 			      (syncml-create-devinf-rxpref-command syncml-transmit-doc 
 								   (syncml-create-devinf-cttype-command
 								    syncml-transmit-doc
@@ -280,7 +289,8 @@ XML Definition: SyncHdr: (VerDTD, VerProto, SessionID, MsgID, Target, Source, Re
 		    (syncml-create-meta-command syncml-transmit-doc
 						(syncml-create-metinf-type-command 
 						 syncml-transmit-doc
-						 "application/cnd.syncml-devinf+xml")))))
+						 "application/vnd.syncml-devinf+xml"))))
+	 (final-node (syncml-create-final-command syncml-transmit-doc)))
 	 
     (syncml-debug 1 'syncml-header "Done creating base DOM nodes.")
     ;; Add the <SyncHdr> and <SyncBody> nodes to the <SyncML> node.
@@ -288,7 +298,9 @@ XML Definition: SyncHdr: (VerDTD, VerProto, SessionID, MsgID, Target, Source, Re
     (dom-node-append-child syncmlnode syncbodynode)
     ;; add the <Alert> command as first child to the <SyncBody>
     (dom-node-append-child syncbodynode alert-node)
-    (dom-node-append-child syncbodynode put-node)
+    ;; ignoring PUT node test 
+    ;; (dom-node-append-child syncbodynode put-node)
+    (dom-node-append-child syncbodynode final-node)
     (syncml-debug 1 'syncml-header "SyncML init DOM tree prepared.")
     ;;    (bbdb-syncml-debug 2 'syncml-header (dom-node-write-to-string syncml-transmit-doc 1))
     (syncml-debug 3 'syncml-header "Function finished.")

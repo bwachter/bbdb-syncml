@@ -6,25 +6,29 @@
 (require 'vcard)
 (require 'bbdb-vcard-export)
 (require 'bbdb-vcard)
-(require 'md5 "/home/jb/src/lisp/md5.el")
+(require 'md5)
 (setq bbdb-syncml-debug-level 2
       syncml-debug-level 2
       bbdb-syncml-debug-duplicate-in-syncml-debug t
-      syncml-host "http://binningsbo.homelinux.org:8080/multisync"
-      syncml-target-locuri "http://binningsbo.homelinux.org:8080/multisync"
-      syncml-source-locuri "bbdb://localhost/"
-      syncml-target-database "addressbook"
-;;      syncml-target-database "contacts"
+      syncml-host "http://binjpowerbook.kicks-ass.net:8080/sync4j/sync"
+      syncml-target-locuri "http://binjpowerbook.kicks-ass.net"
+      syncml-source-locuri "bbdb"
+      syncml-target-database "rawcontact"
       syncml-source-database "bbdb"
-      syncml-user "syncml"
-      syncml-passwd "syncml"
-      syncml-use-md5 'nil)
+      syncml-user "binj"
+      syncml-passwd "binj"
+      syncml-use-md5 'nil
+      bbdb-syncml-debug-level 4
+      syncml-debug-level 2
+      )
 (global-set-key [?\C-c ?\C-b ?\C-s] 'bbdb-syncml-synchronize)
 (global-set-key (kbd "C-c C-x s") 'bbdb-syncml-synchronize)
 (global-set-key (kbd "C-c C-x S") 'bbdb-syncml-synchronize-slow)
 
 (bbdb-syncml-synchronize)
 
+;;  RUN THIS ONLY BEFORE SYNCing THE FIRST TIME!
+(bbdb-syncml-initialize)
 
 (describe-variable bbdb-change-hook)q
 

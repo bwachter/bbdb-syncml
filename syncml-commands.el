@@ -1,5 +1,5 @@
 ;;; syncml-commands.el -- An elisp implementation of a SyncML client. This file contains the syncml commands
-;; $Id: syncml-commands.el,v 1.7 2005/04/03 20:29:11 joergenb Exp $
+;; $Id: syncml-commands.el,v 1.8 2006/04/06 20:37:05 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø 
 
@@ -182,6 +182,14 @@ METADATA is either a string or a dom-node. if a dom-node, it's owner-document sh
     (dom-node-append-child sourcerefnode sourcereftextnode)
     sourcerefnode))
 
+;; create-targetref-command
+(defun syncml-create-targetref-command (ownerdoc pcdata)
+  (syncml-debug 3 'syncml-create-target-command "Function started.")
+  (let* ((targetrefnode (dom-document-create-element ownerdoc "TargetRef"))
+	 (targetreftextnode (dom-document-create-text-node ownerdoc pcdata)))
+    (dom-node-append-child targetrefnode targetreftextnode)
+    targetrefnode))
+
 
 ;; syncml-create-cred-command ()
 (defun syncml-create-cred-command (ownerdoc)
@@ -191,12 +199,23 @@ Parent Elements: Add, Alert, Copy, Delete, Exec, Get, Put, Map, Replace, Search,
 XML declaration: (Meta?, Data)"
   (syncml-debug 3 'syncml-create-cred-command "Function started.")
   (let* ((crednode (dom-document-create-element ownerdoc "Cred")))
-    (dom-node-append-child crednode (syncml-create-meta-command 
-				     ownerdoc
-				     (syncml-create-metinf-type-command ownerdoc "syncml:basic-auth")))
-    (dom-node-append-child crednode (syncml-create-data-command ownerdoc 
-								(concat syncml-user ":" syncml-passwd)))
-    crednode))
+    (if (not (null syncml-use-md5))
+	(progn
+	  (dom-node-append-child crednode (syncml-create-meta-command 
+					   ownerdoc
+					   (syncml-create-metinf-type-command ownerdoc "syncml:auth-md5")))
+	  (dom-node-append-child crednode (syncml-create-data-command ownerdoc 
+								      (md5 (concat syncml-user ":" syncml-passwd))))
+	  crednode)
+      (progn
+	(dom-node-append-child crednode (syncml-create-meta-command 
+					 ownerdoc
+					 (syncml-create-metinf-type-command ownerdoc "syncml:auth-basic")))
+	(dom-node-append-child crednode (syncml-create-data-command ownerdoc 
+								    (base64-encode-string 
+								     (concat syncml-user ":" syncml-passwd))))
+	  crednode)
+      )))
 
 
 ;; syncml-create-sync-command ()
@@ -217,7 +236,7 @@ XML definition: CmdID, NoResp?, Cred?, Target?, Source?, Meta?, NumberOfChanges?
     (if (not (null targetnode))
 	(dom-node-append-child syncnode targetnode))
     (if (not (null sourcenode))
-	(dom-node-append-child syncnode sourceode))
+	(dom-node-append-child syncnode sourcenode))
     (if (not (null metanode))
 	(dom-node-append-child syncnode metanode))
     syncnode))
@@ -303,6 +322,39 @@ XML definition: (CmdID, NoResp?, Lang?, Cred?, Meta?, Item+) "
     (dom-node-append-child putnode itemnode)
     putnode))
     
+
+;; syncml-create-map-command ()
+;; 
+;; Returns a DOM noe corresponding to the SyncML <Map> command.
+;; XML definition: CmdID, NoResp?, Cred?, Meta?, Item+)
+(defun syncml-create-map-command (ownerdoc targetnode sourcenode)
+  "Returns a string with the <Map> command 
+XML definition: 
+CmdID, NoResp?, Cred?, Meta?, Item+)"
+  (syncml-debug 3 'syncml-create-map-command "Function started.")
+  (let* ((mapnode (dom-document-create-element ownerdoc "Map")))
+    (dom-node-append-child mapnode (syncml-create-cmdid-command ownerdoc)) 
+    (if (not (null targetnode))
+	(dom-node-append-child mapnode targetnode))
+    (if (not (null sourcenode))
+	(dom-node-append-child mapnode sourcenode))
+    mapnode))
+
+;; syncml-create-mapitem-command ()
+;; 
+;; Returns a DOM noe corresponding to the SyncML <Map> command.
+;; XML definition: CmdID, NoResp?, Cred?, Meta?, Item+)
+(defun syncml-create-mapitem-command (ownerdoc targetnode sourcenode)
+  "Returns a string with the <MapItem> command 
+XML definition: 
+CmdID, NoResp?, Cred?, Meta?, Item+)"
+  (syncml-debug 3 'syncml-create-mapitem-command "Function started.")
+  (let* ((mapitemnode (dom-document-create-element ownerdoc "MapItem")))
+    (if (not (null targetnode))
+	(dom-node-append-child mapitemnode targetnode))
+    (if (not (null sourcenode))
+	(dom-node-append-child mapitemnode sourcenode))
+    mapitemnode))
 
 
 ;; syncml-create-status-command ()
@@ -492,6 +544,25 @@ Example: <Type>212<Type>   Indicates a successful authentication."
     typenode))
 
 
+;; syncml-create-metinf-maxmsgsize-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <MaxMsgSize> command.
+;; XML Declaration: (#PCDATA)
+;; Parent Elements: Metinf
+(defun syncml-create-metinf-maxmsgsize-command (ownerdoc) 
+  "*Returns a DOM node corresponding to a SyncML <MaxMsgSize> command.
+Hardcoded to : <MaxMsgSize xmlns='syncml:metinf'>200000</MaxMsgSize>   
+"
+  (syncml-debug 3 'syncml-create-metinf-maxmsgsize-command "Function started.")
+  (let* ((maxmsgsizenode (dom-document-create-element ownerdoc "MaxMsgSize"))
+	 (maxmsgsizeattr (dom-document-create-attribute ownerdoc "xmlns"))
+	 (textnode (dom-document-create-text-node ownerdoc "200000")))
+    (setf (dom-attr-value maxmsgsizeattr) "syncml:metinf"
+	  (dom-node-attributes maxmsgsizenode) (list maxmsgsizeattr))
+    (dom-node-append-child maxmsgsizenode textnode)
+    maxmsgsizenode))
+
+
 ;; syncml-create-metinf-anchor-command ()
 ;;
 ;; Returns a DOM node corresponding to a SyncML <Anchor> command.
@@ -538,11 +609,19 @@ Example: <Anchor>212<Anchor>   Indicates a successful authentication."
 ;;
 (defun syncml-create-devinf-devinf-command (ownerdoc datastorenode) 
   "*Returns a DOM node corresponding to a SyncML <DevInf> command."
-
+  
   (let* ((devinfnode (dom-document-create-element ownerdoc "DevInf"))
 	 (devinfattr (dom-document-create-attribute ownerdoc "xmlns")))
     (setf (dom-attr-value devinfattr) "syncml:devinf"
 	  (dom-node-attributes devinfnode) (list devinfattr))
+    (dom-node-append-child devinfnode (syncml-create-devinf-verdtd-command ownerdoc))
+    (dom-node-append-child devinfnode (syncml-create-devinf-man-command ownerdoc))
+    (dom-node-append-child devinfnode (syncml-create-devinf-mod-command ownerdoc))
+    (dom-node-append-child devinfnode (syncml-create-devinf-devid-command 
+				       ownerdoc
+				       syncml-source-locuri))
+    (dom-node-append-child devinfnode (syncml-create-devinf-devtyp-command
+				       ownerdoc))
     (dom-node-append-child devinfnode datastorenode)
     devinfnode))
 
@@ -552,10 +631,11 @@ Example: <Anchor>212<Anchor>   Indicates a successful authentication."
 ;; Returns a DOM node corresponding to a SyncML <DataStore> command.
 ;;
 ;; XML Declaration: (SourceRef, DisplayName?, MaxGUIDSize?, Rx-Pref, Rx*, Tx-Pref, Tx*, DSMem?, SyncCap)
-(defun syncml-create-devinf-datastore-command (ownerdoc sourcerefnode rxprefnode txprefnode synccapnode) 
+(defun syncml-create-devinf-datastore-command (ownerdoc sourcerefnode maxguidsizenode rxprefnode txprefnode synccapnode) 
   "*Returns a DOM node corresponding to a SyncML <DataStore> command."
   (let* ((datastorenode (dom-document-create-element ownerdoc "DataStore")))
     (dom-node-append-child datastorenode sourcerefnode)
+    (dom-node-append-child datastorenode maxguidsizenode)
     (dom-node-append-child datastorenode rxprefnode)
     (dom-node-append-child datastorenode txprefnode)
     (dom-node-append-child datastorenode synccapnode)
@@ -598,6 +678,19 @@ Example: <Anchor>212<Anchor>   Indicates a successful authentication."
 	 (textnode (dom-document-create-text-node ownerdoc cttypedata)))
     (dom-node-append-child cttypenode textnode)
     cttypenode))
+
+;; syncml-create-devinf-maxguidsize-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <MaxGUIDSize> command.
+;;
+;; XML Declaration: (#PCDATA)
+(defun syncml-create-devinf-maxguidsize-command (ownerdoc maxguidsizedata) 
+  "*Returns a DOM node corresponding to a SyncML <MaxGUIDSize> command."
+  (let* ((maxguidsizenode (dom-document-create-element ownerdoc "MaxGUIDSize"))
+	 (textnode (dom-document-create-text-node ownerdoc maxguidsizedata)))
+    (dom-node-append-child maxguidsizenode textnode)
+    maxguidsizenode))
+
 
 
 ;; syncml-create-devinf-verct-command ()
@@ -649,10 +742,58 @@ Example: <Anchor>212<Anchor>   Indicates a successful authentication."
 ;; XML Declaration: (#PCDATA)
 (defun syncml-create-devinf-sourceref-command (ownerdoc sourcerefdata) 
   "*Returns a DOM node corresponding to a SyncML <SourceRef> command."
-  (let* ((sourcerefnode (dom-document-create-element ownerdoc "Sourceref"))
+  (let* ((sourcerefnode (dom-document-create-element ownerdoc "SourceRef"))
 	 (textnode (dom-document-create-text-node ownerdoc sourcerefdata)))
     (dom-node-append-child sourcerefnode textnode)
     sourcerefnode))
+
+;; syncml-create-devinf-devid-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <DevID> command.
+;;
+;; XML Declaration: (#PCDATA)
+(defun syncml-create-devinf-devid-command (ownerdoc deviddata) 
+  "*Returns a DOM node corresponding to a SyncML <DevID> command."
+  (let* ((devidnode (dom-document-create-element ownerdoc "DevID"))
+	 (textnode (dom-document-create-text-node ownerdoc deviddata)))
+    (dom-node-append-child devidnode textnode)
+    devidnode))    
+
+;; syncml-create-devinf-devtyp-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <DevTyp> command.
+;;
+;; XML Declaration: (#PCDATA)
+(defun syncml-create-devinf-devtyp-command (ownerdoc) 
+  "*Returns a DOM node corresponding to a SyncML <DevTyp> command."
+  (let* ((devtypnode (dom-document-create-element ownerdoc "DevTyp"))
+	 (textnode (dom-document-create-text-node ownerdoc "workstation")))
+    (dom-node-append-child devtypnode textnode)
+    devtypnode))    
+
+;; syncml-create-devinf-man-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <Man> command.
+;;
+;; XML Declaration: (#PCDATA)
+(defun syncml-create-devinf-man-command (ownerdoc) 
+  "*Returns a DOM node corresponding to a SyncML <Man> command."
+  (let* ((mannode (dom-document-create-element ownerdoc "Man"))
+	 (textnode (dom-document-create-text-node ownerdoc "syncml.el")))
+    (dom-node-append-child mannode textnode)
+    mannode))    
+
+;; syncml-create-devinf-mod-command ()
+;;
+;; Returns a DOM node corresponding to a SyncML <Mod> command.
+;;
+;; XML Declaration: (#PCDATA)
+(defun syncml-create-devinf-mod-command (ownerdoc) 
+  "*Returns a DOM node corresponding to a SyncML <Mod> command."
+  (let* ((modnode (dom-document-create-element ownerdoc "Mod"))
+	 (textnode (dom-document-create-text-node ownerdoc "bbdb-syncml")))
+    (dom-node-append-child modnode textnode)
+    modnode))    
 
 
 
@@ -666,7 +807,7 @@ Example: <Anchor>212<Anchor>   Indicates a successful authentication."
   (let* ((verdtdnode (dom-document-create-element ownerdoc "VerDTD"))
 	 (textnode (dom-document-create-text-node ownerdoc "1.1")))
     (dom-node-append-child verdtdnode textnode)
-    verctnode))
+    verdtdnode))
 
 
 
