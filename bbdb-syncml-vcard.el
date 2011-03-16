@@ -1,14 +1,14 @@
-;;; bbdb-syncml-vcard.el -- VCard routines for the bbdb-syncml package.
+;; bbdb-syncml-vcard.el -- VCard routines for the bbdb-syncml package.
 ;; $Id: bbdb-syncml-vcard.el,v 1.2 2006/04/06 20:37:05 joergenb Exp $
 
-;; Copyright (C) 2003-2004 Jørgen Binningsbø 
+;; Copyright (C) 2003-2004 Jørgen Binningsbø
 
 ;; Author: Jørgen Binningsbø <jb@pvv.org>
 ;; Maintainer: Jørgen Binningsbø <jb@pvv.org>
-;; Version: 
+;; Version:
 ;; Created: Jan 25 2004
 ;; Keywords: syncml xml network
-;; URL: 
+;; URL:
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -35,43 +35,43 @@
 (defun bbdb-syncml-vcard-get-bbdb-record-as-vcard-string (record)
   "Returns a VCARD2.1 formatted version of RECORD as a string"
   (let (
-	(name (bbdb-record-name record))
-	(first-name (elt record 0))
-	(last-name (elt record 1))
-	(company (elt record 3))
-	(notes (bbdb-record-notes record))
-	(phones (bbdb-record-phones record))
-	(addresses (bbdb-record-addresses record))
-	(luid (bbdb-record-getprop record 'luid))
-	(net (bbdb-record-net record)))
-    (concat 
+        (name (bbdb-record-name record))
+        (first-name (elt record 0))
+        (last-name (elt record 1))
+        (company (elt record 3))
+        (notes (bbdb-record-notes record))
+        (phones (bbdb-record-phones record))
+        (addresses (bbdb-record-addresses record))
+        (luid (bbdb-record-getprop record 'luid))
+        (net (bbdb-record-net record)))
+    (concat
      "BEGIN:VCARD\n"
      "VERSION:2.1\n"
      (concat "FN:" name "\n")
      (concat "N:" last-name ";" first-name "\n"
-	     (if company (concat "ORG:" company "\n"))
-	     (if notes (concat "NOTE:" notes "\n")))
-     
+             (if company (concat "ORG:" company "\n"))
+             (if notes (concat "NOTE:" notes "\n")))
+
      (concat "UID:" luid "\n")
      (if phones
-	 (let (res)
-	   (dolist (phone phones res)
-	     (push (concat "TEL;" (bbdb-syncml-vcard-lookup-location-mapping
-					(bbdb-phone-location phone))
-			   ":"
-			   (bbdb-phone-string phone) "\n")
-		   res))
-	   (mapconcat 'concat (cons "" res) "")))
-     
-     
+         (let (res)
+           (dolist (phone phones res)
+             (push (concat "TEL;" (bbdb-syncml-vcard-lookup-location-mapping
+                                   (bbdb-phone-location phone))
+                           ":"
+                           (bbdb-phone-string phone) "\n")
+                   res))
+           (mapconcat 'concat (cons "" res) "")))
+
+
      (if addresses
-	 (while addresses
-	   (concat (bbdb-vcard-export-address-string (car addresses)) "\n")
-	   (setq addresses (cdr addresses))))
+         (while addresses
+           (concat (bbdb-vcard-export-address-string (car addresses)) "\n")
+           (setq addresses (cdr addresses))))
      (if net
-	 (while net
-	   (concat "EMAIL;TYPE=internet:" (car net) "\n")
-	   (setq net (cdr net))))
+         (while net
+           (concat "EMAIL;TYPE=internet:" (car net) "\n")
+           (setq net (cdr net))))
      (concat "END:VCARD\n"))))
 
 
@@ -94,10 +94,9 @@
 
   (let (tmp (car (cdr (assoc location bbdb-syncml-vcard-phone-location-mappings))))
     (if (null tmp)
-	(setq tmp "VOICE"))
+        (setq tmp "VOICE"))
     tmp))
 
 
 
-(provide 'bbdb-syncml-vcard)	 
-		  
+(provide 'bbdb-syncml-vcard)

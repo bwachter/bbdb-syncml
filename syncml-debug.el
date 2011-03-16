@@ -1,11 +1,11 @@
 ;; This files contain debug utilities for the syncml package.
 ;; $Id: syncml-debug.el,v 1.2 2004/01/17 16:30:16 joergenb Exp $
 
-;; Copyright (C) 2003 Jørgen Binningsbø 
+;; Copyright (C) 2003 Jørgen Binningsbø
 
 ;; Author: Jørgen Binningsbø <jb@pvv.org>
 ;; Maintainer: Jørgen Binningsbø <jb@pvv.org>
-;; Version: 
+;; Version:
 ;; Created: Jan 10 2003
 ;; Keywords: syncml xml network
 ;; URL: http://savannah.nongnu.org/projects/bbdb-syncml
@@ -31,7 +31,7 @@
 
 (defcustom syncml-debug-level 0
   "*The debug level to use.  When debug level is set to an INTEGER,
-all debug messages <= INTEGER will be printed.  
+all debug messages <= INTEGER will be printed.
 Thus, the higher the debug level, the more garbage you'll get :)")
 
 (defcustom syncml-debug nil
@@ -42,13 +42,13 @@ If t, all messages will be logged.
 If a number, all messages will be logged, as well shown via `message'.
 If a list, it is a list of the types of messages to be logged."
   :type '(choice (const :tag "none" nil)
-		 (const :tag "all" t)
-		 (checklist :tag "custom"
-			    (const :tag "HTTP" :value http)
-			    (const :tag "DAV" :value dav)
-			    (const :tag "General" :value retrieval)
-			    (const :tag "Filename handlers" :value handlers)
-			    (symbol :tag "Other")))
+                 (const :tag "all" t)
+                 (checklist :tag "custom"
+                            (const :tag "HTTP" :value http)
+                            (const :tag "DAV" :value dav)
+                            (const :tag "General" :value retrieval)
+                            (const :tag "Filename handlers" :value handlers)
+                            (symbol :tag "Other")))
   :group 'syncml-hairy)
 
 ;;;###autoload
@@ -56,15 +56,15 @@ If a list, it is a list of the types of messages to be logged."
   (if quit-flag
       (error "Interrupted!"))
   (if (and (<= level syncml-debug-level)
-	   (or (eq syncml-debug t)
-	       (numberp syncml-debug)
-	       (and (listp syncml-debug) (memq tag syncml-debug))))
+           (or (eq syncml-debug t)
+               (numberp syncml-debug)
+               (and (listp syncml-debug) (memq tag syncml-debug))))
       (save-excursion
-	(set-buffer (get-buffer-create "*SYNCML-DEBUG*"))
-	(goto-char (point-max))
-	(insert (current-time-string) "[" (number-to-string level) "]: " (symbol-name tag) " -> " (apply 'format args) "\n")
-	(if (numberp syncml-debug)
-	    (apply 'message args)))))
+        (set-buffer (get-buffer-create "*SYNCML-DEBUG*"))
+        (goto-char (point-max))
+        (insert (current-time-string) "[" (number-to-string level) "]: " (symbol-name tag) " -> " (apply 'format args) "\n")
+        (if (numberp syncml-debug)
+            (apply 'message args)))))
 
 
 (provide 'syncml-debug)

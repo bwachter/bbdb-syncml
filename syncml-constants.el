@@ -1,12 +1,12 @@
-;;; This file just contains a list of SyncML constants
-;;; Please see the SyncML Sync Protocol.
+;; This file just contains a list of SyncML constants
+;; Please see the SyncML Sync Protocol.
 ;; $Id: syncml-constants.el,v 1.2 2004/01/17 16:30:16 joergenb Exp $
 
-;; Copyright (C) 2003 Jørgen Binningsbø 
+;; Copyright (C) 2003 Jørgen Binningsbø
 
 ;; Author: Jørgen Binningsbø <jb@pvv.org>
 ;; Maintainer: Jørgen Binningsbø <jb@pvv.org>
-;; Version: 
+;; Version:
 ;; Created: Jan 10 2003
 ;; Keywords: syncml xml network
 ;; URL: http://savannah.nongnu.org/projects/bbdb-syncml
@@ -34,68 +34,68 @@
 
 ;; Alert codes for user alert:
 (defconst syncml-alert-display 100
-	"SyncML <ALERT> Code: Show. The Data element type contains content information that should be processed and displayed through the user agent.")
+  "SyncML <ALERT> Code: Show. The Data element type contains content information that should be processed and displayed through the user agent.")
 
 ;; Alert codes used at the synchronization initalization:
 (defconst syncml-alert-two-way "200"
-	"SyncML <ALERT> Code: Specifies a client-initiated, two-way sync.")
+  "SyncML <ALERT> Code: Specifies a client-initiated, two-way sync.")
 (defconst syncml-alert-slow-sync "201"
-	"SyncML <ALERT> Code: Specifies a client-initiated, two-way slow-sync.")
+  "SyncML <ALERT> Code: Specifies a client-initiated, two-way slow-sync.")
 (defconst syncml-alert-one-way-from-client "202"
-	"SyncML <ALERT> Code: Specifies the client-initiated, one-way only sync from the client to the server.")
+  "SyncML <ALERT> Code: Specifies the client-initiated, one-way only sync from the client to the server.")
 (defconst syncml-alert-refresh-from-client "203"
-	"SyncML <ALERT> Code: Specifies the client-initiated, refresh operation for the oneway only sync from the client to the server.")
+  "SyncML <ALERT> Code: Specifies the client-initiated, refresh operation for the oneway only sync from the client to the server.")
 (defconst syncml-alert-one-way-from-server "204"
-	"SyncML <ALERT> Code: Specifies the client-initiated, one-way only sync from the server to the client.")
+  "SyncML <ALERT> Code: Specifies the client-initiated, one-way only sync from the server to the client.")
 (defconst syncml-alert-refresh-from-server "205"
-	"SyncML <ALERT> Code: Specifies the client-initiated, refresh operation of the oneway only sync from the server to the client.")
+  "SyncML <ALERT> Code: Specifies the client-initiated, refresh operation of the oneway only sync from the server to the client.")
 
 ;; Alert codes used by the server when alerting the sync.
 (defconst syncml-alert-two-way-by-server "206"
-	"SyncML <ALERT> Code: Specifies a server-initiated, two-way sync.")
+  "SyncML <ALERT> Code: Specifies a server-initiated, two-way sync.")
 (defconst syncml-alert-one-way-from-client-by-server "207"
-	"SyncML <ALERT> Code: Specifies the server-initiated, one-way only sync from the client to the server.")
+  "SyncML <ALERT> Code: Specifies the server-initiated, one-way only sync from the client to the server.")
 (defconst syncml-alert-refresh-from-client-by-server "208"
-	"SyncML <ALERT> Code: Specifies the server-initiated, refresh operation for the one-way only sync from the client to the server.")
+  "SyncML <ALERT> Code: Specifies the server-initiated, refresh operation for the one-way only sync from the client to the server.")
 (defconst syncml-alert-one-way-from-server-by-server "209"
-	"SyncML <ALERT> Code: Specifies the server-initiated, one-way only sync from the server to the client.")
+  "SyncML <ALERT> Code: Specifies the server-initiated, one-way only sync from the server to the client.")
 (defconst syncml-alert-refresh-from-server-by-server "210"
-	"SyncML <ALERT> Code: Specifies the server-initiated, refresh operation of the oneway only sync from the server to the client.")
+  "SyncML <ALERT> Code: Specifies the server-initiated, refresh operation of the oneway only sync from the server to the client.")
 
 ;; Special alert codes:
 (defconst syncml-alert-result-alert "221"
-	"SyncML <ALERT> Code: Specifies a request for sync results.")
+  "SyncML <ALERT> Code: Specifies a request for sync results.")
 (defconst syncml-alert-next-message "222"
-	"SyncML <ALERT> Code: Specifies a request for the next message in the package.")
+  "SyncML <ALERT> Code: Specifies a request for the next message in the package.")
 (defconst syncml-alert-no-end-of-data "223"
-	"SyncML <ALERT> Code: End of Data for chunked object not received.")
+  "SyncML <ALERT> Code: End of Data for chunked object not received.")
 
 
 (defconst syncml-alert-codes
-'(
-  ;;Alert Codes used for user alerts ")
-  ("100" "DISPLAY Show. The Data element type contains content information that should be processed and displayed through the user agent.")
-  ;;101-150 - Reserved for future SyncML usage. 
-  ;; Alert Codes used at the synchronization initialization 
-  ("200" "TWO-WAY Specifies a client-initiated, two-way sync. ")
-  ("201" "SLOW SYNC Specifies a client-initiated, two-way slow-sync. ")
-  ("202" "ONE-WAY FROM CLIENT Specifies the client-initiated, one-way only sync from the client to the server. ")
-  ("203" "REFRESH FROM CLIENT Specifies the client-initiated, refresh operation for the oneway only sync from the client to the server. ")
-  ("204" "ONE-WAY FROM SERVER Specifies the client-initiated, one-way only sync from the server to the client. ")
-  ("205" "REFRESH FROM SERVER Specifies the client-initiated, refresh operation of the oneway only sync from the server to the client. Alert Codes used by the server when alerting the sync. ")
-  ("206" "TWO-WAY BY SERVER Specifies a server-initiated, two-way sync. ")
-  ("207" "ONE-WAY FROM CLIENT BY SERVER Specifies the server-initiated, one-way only sync from the client to the server. ")
-  ("208" "REFRESH FROM CLIENT BY SERVER Specifies the server-initiated, refresh operation for the one-way only sync from the client to the server.
+  '(
+    ;;Alert Codes used for user alerts ")
+    ("100" "DISPLAY Show. The Data element type contains content information that should be processed and displayed through the user agent.")
+    ;;101-150 - Reserved for future SyncML usage.
+    ;; Alert Codes used at the synchronization initialization
+    ("200" "TWO-WAY Specifies a client-initiated, two-way sync. ")
+    ("201" "SLOW SYNC Specifies a client-initiated, two-way slow-sync. ")
+    ("202" "ONE-WAY FROM CLIENT Specifies the client-initiated, one-way only sync from the client to the server. ")
+    ("203" "REFRESH FROM CLIENT Specifies the client-initiated, refresh operation for the oneway only sync from the client to the server. ")
+    ("204" "ONE-WAY FROM SERVER Specifies the client-initiated, one-way only sync from the server to the client. ")
+    ("205" "REFRESH FROM SERVER Specifies the client-initiated, refresh operation of the oneway only sync from the server to the client. Alert Codes used by the server when alerting the sync. ")
+    ("206" "TWO-WAY BY SERVER Specifies a server-initiated, two-way sync. ")
+    ("207" "ONE-WAY FROM CLIENT BY SERVER Specifies the server-initiated, one-way only sync from the client to the server. ")
+    ("208" "REFRESH FROM CLIENT BY SERVER Specifies the server-initiated, refresh operation for the one-way only sync from the client to the server.
 ")
-  ("209" "ONE-WAY FROM SERVER BY SERVER Specifies the server-initiated, one-way only sync from the server to the client. ")
-  ("210" "REFRESH FROM SERVER BY SERVER Specifies the server-initiated, refresh operation of the oneway only sync from the server to the client.")
-  ;; 211-220 - Reserved for future SyncML usage. 
-  ;; Special Alert Codes
-  ("221" "RESULT ALERT Specifies a request for sync results. ")
-  ("222" "NEXT MESSAGE Specifies a request for the next message in the package. ")
-  ("223" "NO END OF DATA End of Data for chunked object not received.") 
-  ;; 224-250 - Reserved for future SyncML usage.
-  ))
+    ("209" "ONE-WAY FROM SERVER BY SERVER Specifies the server-initiated, one-way only sync from the server to the client. ")
+    ("210" "REFRESH FROM SERVER BY SERVER Specifies the server-initiated, refresh operation of the oneway only sync from the server to the client.")
+    ;; 211-220 - Reserved for future SyncML usage.
+    ;; Special Alert Codes
+    ("221" "RESULT ALERT Specifies a request for sync results. ")
+    ("222" "NEXT MESSAGE Specifies a request for the next message in the package. ")
+    ("223" "NO END OF DATA End of Data for chunked object not received.")
+    ;; 224-250 - Reserved for future SyncML usage.
+    ))
 
 
 
@@ -104,7 +104,7 @@
 ;; REPONSE CODES
 ;;;;;;;;;;;;;;;;;
 
-(defconst syncml-response-codes 
+(defconst syncml-response-codes
   ;; successfull 2xx
   '(("200" "OK. The SyncML command completed successfully")
     ("201" "Item Added. The requested item was added")
@@ -124,7 +124,7 @@
     ("215" "Not executed. A command was not executed, as a result of user interaction and user chose not to accept the choice. ")
     ("216" "Atomic roll back OK. A command was inside Atomic element and Atomic failed. This command was rolled back successfully.")
 
-    ;;  Redirection 3xx 
+    ;;  Redirection 3xx
     ("300" "Multiple choices. The requested target is one of a number of multiple alternatives requested target. The alternative SHOULD also be returned in the Item element type in the Status. ")
     ("301" "Moved permanently. The requested target has a new URI. The new URI SHOULD also be returned in the Item element type in the Status. ")
     ("302" "Found. The requested target has temporarily moved to a different URI. The original URI SHOULD continue to be used. The URI of the temporary location SHOULD also be returned in the Item element type in the Status. The requestor SHOULD confirm the identity and authority of the temporary URI to act on behalf of the original target URI. ")
@@ -132,7 +132,7 @@
     ("304" "Not modified. The requested SyncML command was not executed on the target. This is an additional response that can be added to any of the other Redirection response codes. ")
     ("305" "Use proxy. The requested target MUST be accessed through the specified proxy URI. The proxy URI SHOULD also be returned in the Item element type in the Status.")
 
-    ;; Originator Exceptions 4xx 
+    ;; Originator Exceptions 4xx
     ("400" "Bad request. The requested command could not be performed because of malformed syntax in the command. The malformed command MAY also be returned in the Item element type in the Status. ")
     ("401" "Invalid credentials. The requested command failed because the requestor MUST provide proper authentication. If the property type of authentication was presented in the original request, then the response code indicates that the requested command has been refused for those credentials. ")
     ("402" "Payment required. The requested command failed because proper payment is required. This version of SyncML does not standardize the payment mechanism. ")
@@ -160,7 +160,7 @@
     ("424" "Size mismatch. The chunked object was received, but the size of the received object did not match the size declared within the first chunk. ")
     ("425" "Permission Denied. The requested command failed because the sender does not have adequate access control permissions (ACL) on the recipient. ")
 
-    ;; Recipient Exception 5xx 
+    ;; Recipient Exception 5xx
     ("500" "Command failed. The recipient encountered an unexpected condition which prevented it from fulfilling the request ")
     ("501" "Command not implemented. The recipient does not support the command required to fulfill the request. This is the appropriate response when the recipient does not recognize the requested command and is not capable of supporting it for any resource. ")
     ("502" "Bad gateway. The recipient, while acting as a gateway or proxy, received an invalid response from the upstream recipient it accessed in attempting to fulfill the request. ")
