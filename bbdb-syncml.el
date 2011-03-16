@@ -31,7 +31,7 @@
 (require 'bbdb)
 (require 'bbdb-com)
 (require 'bbdb-syncml-debug)
-(require 'bbdb-syncml-vcard)
+(require 'bbdb-vcard)
 (require 'syncml)
 
 (setq bbdb-syncml-debug t)
@@ -334,8 +334,8 @@ BBDB-SYNCML-DELETED-LUIDS
              pkg3-doc
              nil
              (syncml-create-source-command pkg3-doc luid)
-             (syncml-create-data-command pkg3-doc (bbdb-syncml-vcard-get-bbdb-record-as-vcard-string
-                                                   (car (bbdb-syncml-get-record-by-luid luid)))))
+             (syncml-create-data-command-cdata pkg3-doc (bbdb-vcard-from
+                                                         (car (bbdb-syncml-get-record-by-luid luid)))))
             (syncml-create-meta-command pkg3-doc
                                         (syncml-create-metinf-type-command
                                          pkg3-doc
@@ -356,7 +356,7 @@ BBDB-SYNCML-DELETED-LUIDS
              pkg3-doc
              nil
              (syncml-create-source-command pkg3-doc luid)
-             (syncml-create-data-command pkg3-doc (bbdb-syncml-vcard-get-bbdb-record-as-vcard-string
+             (syncml-create-data-command pkg3-doc (bbdb-vcard-from
                                                    (car (bbdb-syncml-get-record-by-luid luid)))))
             (syncml-create-meta-command pkg3-doc
                                         (syncml-create-metinf-type-command
@@ -954,10 +954,10 @@ It also updates the BBDB-SYNCML-PKG5-OK-LUIDS variable, to be stored in the mapp
                           ;;  (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-reponse "Is element a number?: %S" (numberp element))
                           ;;  (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-reponse "Is element a string?: %S" (stringp element)))
                           ;;(bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-reponse "Deleted list: %S"
-                          ;;                          (remove* node-luid bbdb-syncml-pkg5-ok-luids :test 'equal))
-                          ;;       (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-reponse "Deleted list: %S"
-                          ;;                          (remove node-luid bbdb-syncml-pkg5-ok-luids))
-                          ;;       (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-reponse "Deleted list: %S" bbdb-syncml-pkg5-ok-luids))
+                          ;;                            (remove* node-luid bbdb-syncml-pkg5-ok-luids :test 'equal))
+                          ;;         (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-reponse "Deleted list: %S"
+                          ;;                            (remove node-luid bbdb-syncml-pkg5-ok-luids))
+                          ;;         (bbdb-syncml-debug 2 'bbdb-syncml-process-modifications-reponse "Deleted list: %S" bbdb-syncml-pkg5-ok-luids))
                           ;; if un-successful delete, keep luid in mapping list to force new <Delete> for next sync.
                           (progn (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "Item NOT DELETED at server!")
                                  (push node-luid bbdb-syncml-pkg5-not-ok-luids))))))
