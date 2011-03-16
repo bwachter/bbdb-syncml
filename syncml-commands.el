@@ -105,6 +105,31 @@ Example: <Data>212<Data>   Indicates a successful authentication."
           (t (error "Neither string nor dom-node given to the Data command.")))
     datanode))
 
+;; syncml-create-data-command-cdata ()
+;;
+;; Returns a DOM node corresponding to a SyncML <Data> command.
+;; XML Declaration: (#PCDATA)
+;; Parent Elements: Alert, Cred, Item, Status, Search
+;;
+;; Example: <Data>212<Data>   Indicates a successful authentication
+;; FIXME, properly enclose DOM nodes in CDATA as well
+(defun syncml-create-data-command-cdata (ownerdoc mydata)
+  "*Returns a DOM node corresponding to a SyncML <Data> command.
+
+MYDATA is a string containing the #PCDATA content.
+Example: <Data>212<Data>   Indicates a successful authentication."
+  (syncml-debug 3 'syncml-create-data-command "Function started.")
+  (let* ((datanode (dom-document-create-element ownerdoc "Data")))
+    (cond ((stringp mydata)
+           (dom-node-append-child datanode
+                                  (dom-document-create-text-node
+                                   ownerdoc
+                                   (concat "<![CDATA[" mydata "]]>"))))
+          ((dom-node-p mydata)
+           (dom-node-append-child datanode mydata))
+          (t (error "Neither string nor dom-node given to the Data command.")))
+    datanode))
+
 ;; syncml-create-meta-command ()
 ;;
 ;; Returns a DOM node corresponding to a SyncML <Meta> command.
