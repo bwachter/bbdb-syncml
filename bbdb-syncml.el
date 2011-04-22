@@ -686,7 +686,7 @@ NOTE: should only be called after syncing is finished"
   (bbdb-syncml-debug 1 'bbdb-syncml-get-last-sync "Triggered")
   (set-buffer (find-file-noselect bbdb-syncml-mapping-file))
   (goto-char (point-min))
-  (if (not (re-search-forward ";;; last sync timestamp: \\(.*\\)" nil t))
+  (if (not (re-search-forward ";;; last sync timestamp:\\(.*\\)" nil t))
       (bbdb-syncml-debug 1 'bbdb-syncml-get-last-sync "Not found.")
     (bbdb-syncml-debug 1 'bbdb-syncml-get-last-sync "Found: %S" (match-string 1))
     (match-string 1)))
@@ -698,7 +698,7 @@ NOTE: should only be called after syncing is finished and successful."
   (bbdb-syncml-debug 1 'bbdb-syncml-write-next-timestamp "Started. Timestamp is %S" timestamp)
   (set-buffer (find-file-noselect bbdb-syncml-mapping-file))
   (goto-char (point-min))
-  (if (not (re-search-forward ";;; Last sync timestamp: " nil t))
+  (if (not (re-search-forward ";;; Last sync timestamp:" nil t))
       (progn (bbdb-syncml-debug 1 'bbdb-syncml-increment-luid "Unable to find position for timestamp in mapping file.")
              (error "unable to find  position for timestamp in mapping file!"))
     (kill-region  (point) (line-end-position))
@@ -993,7 +993,7 @@ It also updates the BBDB-SYNCML-PKG5-OK-LUIDS variable, to be stored in the mapp
                    (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "New record from server.")
                    (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "%S" (dom-node-write-to-string add-node))
                    (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "%S" (dom-node-text-content (car (xpath-resolve add-node "child::Item/child::Data"))))
-                   (let* ((newrecord (bbdb-vcard-snarf
+                   (let* ((newrecord (bbdb-vcard-import-vcard
                                       (dom-node-text-content (car (xpath-resolve add-node "child::Item/child::Data"))))))
 
                      (bbdb-record-putprop newrecord 'luid bbdb-syncml-next-luid)
@@ -1057,7 +1057,7 @@ It also updates the BBDB-SYNCML-PKG5-OK-LUIDS variable, to be stored in the mapp
                      (bbdb-save-db)
                      (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "Record with luid %s deleted." luid-to-delete )
                      (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "Modified record - about to create new record.")
-                     (let* ((newrecord (bbdb-vcard-snarf
+                     (let* ((newrecord (bbdb-vcard-import-vcard
                                         (dom-node-text-content (car (xpath-resolve replace-node "child::Item/child::Data"))))))
                        (bbdb-record-putprop newrecord 'luid luid-to-delete)
                        (bbdb-record-putprop newrecord 'creation-date syncml-current-timestamp)

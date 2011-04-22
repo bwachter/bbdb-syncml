@@ -152,37 +152,39 @@ The response from the server is stored in the syncml-response-doc variable."
   (setq syncml-response-doc nil)
   (setq syncml-response-xml nil)
 
+  (syncml-debug 1 'syncml-send-message-with-curl "Preparing DOM to send...")
   ;; insert an xml representation of the DOM
   (insert (dom-node-write-to-string doc))
 
   (syncml-debug 2 'syncml-send-message-with-curl "Posting following message to server:\n %S" (buffer-string))
 
-  ;; send the message to the server. the response is in SYNCML-REPONSE-BUFFER
   (if (not (null syncml-next-respuri))
-      (progn (syncml-debug 1 'syncml-send-message-with-curl "Posting to server URL: %s" syncml-next-respuri)
-             (call-process "curl" nil syncml-response-buffername nil
-                           "-silent"
-                           "-H"
-                           "Content-Type: application/vnd.syncml+xml;charset=UTF-8"
-                           "--data-binary"
-                           (encode-coding-string (concat
-                                                  "<?xml version='1.0' encoding='UTF-8' ?>"
-                                                  (dom-node-write-to-string doc))
-                                                 'utf-8)
-                           syncml-next-respuri))
-    (progn (syncml-debug 3 'syncml-send-message-with-curl "Posting to server URL: %s" syncml-host)
-           (call-process "curl" nil syncml-response-buffername nil
-                         "-silent"
-                         "-H"
-                         "Content-Type: application/vnd.syncml+xml;charset=UTF-8"
-                         "--data-binary"
-                         (encode-coding-string (concat
-                                                "<?xml version='1.0' encoding='UTF-8' ?>"
-                                                (dom-node-write-to-string doc))
-                                               'utf-8)
-                         syncml-host)))
+      (setq syncml-response-uri (concat syncml-host syncml-next-respuri))
+    (setq syncml-response-uri (concat syncml-host syncml-target-locuri)))
 
+  (syncml-debug 1 'syncml-send-message-with-curl "Posting to server URL: %s" syncml-response-uri)
 
+  (setq curl-process (start-process "curl" syncml-response-buffername "curl"
+                                    "-silent"
+                                    "-H"
+                                    "Content-Type: application/vnd.syncml+xml;charset=UTF-8"
+                                    "--data-binary"
+                                    "@-"
+                                    syncml-response-uri))
+
+  (process-send-string curl-process (encode-coding-string (concat
+                                                           "<?xml version='1.0' encoding='UTF-8' ?>"
+                                                           (dom-node-write-to-string doc))
+                                                          'utf-8))
+  (process-send-eof curl-process)
+  (process-send-eof curl-process)
+  (while (eq 'run (process-status curl-process))
+    (accept-process-output curl-process 5))
+
+  (syncml-debug 2 'syncml-send-message-with-curl "Message: %s"                            (encode-coding-string (concat
+                                                                                                                 "<?xml version='1.0' encoding='UTF-8' ?>"
+                                                                                                                 (dom-node-write-to-string doc))
+                                                                                                                'utf-8))
   ;; TODO: need to check the HTTP response code here!!
   (set-buffer syncml-response-buffername)
   (syncml-debug 3 'syncml-send-message-with-curl "Response from server probable coding system: %S" (detect-coding-string (buffer-string)))
@@ -196,12 +198,14 @@ The response from the server is stored in the syncml-response-doc variable."
     (erase-buffer)
     ;;    (insert (decode-coding-string temp-string 'utf-8))
     (insert temp-string)
-    (syncml-debug 3 'syncml-send-message-with-curl "Contents of syncml-response-buffer-utf8: %S" (buffer-string))
+    ;; FIXME, should be 3
+    (syncml-debug 2 'syncml-send-message-with-curl "Contents of syncml-response-buffer-utf8: %S" (buffer-string))
     (syncml-debug 3 'syncml-send-message-with-curl "Parsing response and building a DOM representation.")
 
     ;; Start parsing from the <SyncML> tag
     (goto-char (point-min))
-    (search-forward-regexp "<SyncML\\(>\\| xmlns=\\\"\\S *\\\">\\)") ;;multisync specifies the namespace, others i've tested don't have this
+    ;;(search-forward-regexp "<SyncML\\(>\\| xmlns=\\\"\\S *\\\">\\)") FIXME: should both match ' and "
+    (search-forward-regexp "<SyncML\\(>\\| xmlns='\\S *'>\\)") ;;multisync specifies the namespace, others i've tested don't have this
     (move-to-column 0)
 
     ;; Parse the rest of the buffer and store result in SYNCML-RESPONSE-DOC
@@ -211,12 +215,26 @@ The response from the server is stored in the syncml-response-doc variable."
 
     (syncml-debug 3 'syncml-send-message-with-curl "SyncML response successfully transformed into a DOM tree.")
     (syncml-debug 2 'syncml-send-message-with-curl "SyncML Message from server: %s" (dom-node-write-to-string syncml-response-doc))
-    (syncml-debug 3 'syncml-send-message-with-curl "Searching for <RespURI> tag")
-    (setq syncml-next-respuri
+    (syncml-debug 3 'syncml-send-message-with-curl "Searching for <Data> tag")
+    (setq syncml-data
           (dom-node-text-content
-           (car (xpath-resolve (dom-document-element syncml-response-doc) "descendant::RespURI"))))
-    (erase-buffer)
-    (syncml-debug 3 'syncml-send-message-with-curl "<RespURI> is %S" syncml-next-respuri)
+           (car (xpath-resolve (dom-document-element syncml-response-doc) "descendant::Data"))))
+
+    (if (> (string-to-number syncml-data) 299)
+        (syncml-debug 3 'syncml-send-message-with-curl "SyncML status: %s" syncml-data)
+      (progn
+        (syncml-debug 3 'syncml-send-message-with-curl "Searching for <RespURI> tag")
+        (setq syncml-next-respuri
+              (let* ((tmp (car (xpath-resolve (dom-document-element syncml-response-doc) "descendant::RespURI"))))
+                (if tmp
+                    (dom-node-text-content tmp)
+                  nil)
+                )
+              )
+        (erase-buffer)
+        (syncml-debug 3 'syncml-send-message-with-curl "<RespURI> is %S" syncml-next-respuri)
+        )
+      )
     (syncml-debug 3 'syncml-send-message-with-curl "Function finished.")))
 
 
@@ -379,14 +397,14 @@ TODO:  how to let this command control program flow ?"
         (syncml-data (dom-node-text-content (car (xpath-resolve node "child::Data")))))
     (syncml-debug 1 'syncml-process-alert-command "Server sent alert command %S: %S" syncml-data (syncml-lookup-alert-code syncml-data))
     ;;    (cond ((string= "404" syncml-data)
-    ;;     (progn (syncml-debug 1 'syncml-process-status-command "Server said 404: Not found"))
-    ;;     (error "Target database not found"))
-    ;;    ((string= "508" syncml-data)
-    ;;     (progn (syncml-debug 1 'syncml-process-status-command "Server said 508: Refresh required. Initiating slow sync"))
-    ;;     (setq syncml-doing-slow-sync 't))
-    ;;    ((not (string= syncml-data "200"))
-    ;;     (progn (syncml-debug 1 'syncml-process-status-command "ERROR. Server said %S" syncml-data)
-    ;;            (error "Error in request"))))
+    ;;         (progn (syncml-debug 1 'syncml-process-status-command "Server said 404: Not found"))
+    ;;         (error "Target database not found"))
+    ;;        ((string= "508" syncml-data)
+    ;;         (progn (syncml-debug 1 'syncml-process-status-command "Server said 508: Refresh required. Initiating slow sync"))
+    ;;         (setq syncml-doing-slow-sync 't))
+    ;;        ((not (string= syncml-data "200"))
+    ;;         (progn (syncml-debug 1 'syncml-process-status-command "ERROR. Server said %S" syncml-data)
+    ;;                (error "Error in request"))))
     ))
 
 
