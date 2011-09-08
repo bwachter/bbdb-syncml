@@ -120,6 +120,16 @@ from 1 within each unique session."
   (setq syncml-current-cmdid (+ syncml-current-cmdid 1)))
 
 
+(defun syncml-locuid (&optional hostname)
+  "Generate a luid token to register at the SyncML server"
+  (let* ((luid (concat "emacs-syncml-"
+                       (car (split-string (system-name) "\\."))
+                       "-"
+                       (md5 (concat (system-name) (format-time-string "%Y%m%d%T%z")))
+                       )))
+    (message (concat "Your source-luid is: " luid))
+    ))
+
 (defun syncml-init (&optional slow-sync)
   "Initialized a SyncML request. If SLOW-SYNC is 't, then a request for a slow sync is forced.
 
