@@ -993,8 +993,12 @@ It also updates the BBDB-SYNCML-PKG5-OK-LUIDS variable, to be stored in the mapp
                    (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "New record from server.")
                    (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "%S" (dom-node-write-to-string add-node))
                    (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "%S" (dom-node-text-content (car (xpath-resolve add-node "child::Item/child::Data"))))
-                   (let* ((newrecord (bbdb-vcard-import-vcard
-                                      (dom-node-text-content (car (xpath-resolve add-node "child::Item/child::Data"))))))
+                   (let* (
+			  (vcard-raw (dom-node-text-content (car (xpath-resolve add-node "child::Item/child::Data"))))
+			  (vcard (replace-recexp-in-string "\r\n" "\n" vcard-raw))
+			  (newrecord (bbdb-vcard-import-vcard vcard))
+			  )
+		     (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "%S" vcard)
 
                      (bbdb-record-putprop newrecord 'luid bbdb-syncml-next-luid)
                      (bbdb-record-putprop newrecord 'creation-date syncml-current-timestamp)
@@ -1002,9 +1006,9 @@ It also updates the BBDB-SYNCML-PKG5-OK-LUIDS variable, to be stored in the mapp
                      ;; syncml-current-timestamp instead,
                      ;; otherwise this record will be tagged as modified during next sync even if no changes was made.
                      (remove-hook 'bbdb-change-hook 'bbdb-timestamp-hook)
-                     (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "BBDB-CHANGE-HOOK: %S"
-                                        (describe-variable 'bbdb-change-hook))
-                     (sleep-for 1)
+                     ;;(bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "BBDB-CHANGE-HOOK: %S"
+                     ;;                   (describe-variable 'bbdb-change-hook))
+                     ;;(sleep-for 1)
                      (bbdb-record-putprop newrecord 'timestamp syncml-current-timestamp)
                      (bbdb-save-db)
                      (add-hook 'bbdb-change-hook 'bbdb-timestamp-hook)
@@ -1057,17 +1061,19 @@ It also updates the BBDB-SYNCML-PKG5-OK-LUIDS variable, to be stored in the mapp
                      (bbdb-save-db)
                      (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "Record with luid %s deleted." luid-to-delete )
                      (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "Modified record - about to create new record.")
-                     (let* ((newrecord (bbdb-vcard-import-vcard
-                                        (dom-node-text-content (car (xpath-resolve replace-node "child::Item/child::Data"))))))
+                     (let* (
+			    (vcard-raw (dom-node-text-content (car (xpath-resolve add-node "child::Item/child::Data"))))
+			    (vcard (replace-recexp-in-string "\r\n" "\n" vcard-raw))
+			    (newrecord (bbdb-vcard-import-vcard vcard)))
                        (bbdb-record-putprop newrecord 'luid luid-to-delete)
                        (bbdb-record-putprop newrecord 'creation-date syncml-current-timestamp)
                        ;; because of delay in this program, we temporarily disabling the automatic timestamp hook, as we want to use the
                        ;; syncml-current-timestamp instead,
                        ;; otherwise this record will be tagged as modified during next sync even if no changes was made.
                        (remove-hook 'bbdb-change-hook 'bbdb-timestamp-hook)
-                       (sleep-for 1)
-                       (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "BBDB-CHANGE-HOOK: %S"
-                                          (describe-variable 'bbdb-change-hook))
+                       ;(sleep-for 1)
+                       ;(bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "BBDB-CHANGE-HOOK: %S"
+                       ;                   (describe-variable 'bbdb-change-hook))
 
                        (bbdb-record-putprop newrecord 'timestamp syncml-current-timestamp)
                        (bbdb-save-db)
