@@ -103,6 +103,8 @@ Example: <Data>212<Data>   Indicates a successful authentication."
           ((dom-node-p mydata)
            (dom-node-append-child datanode mydata))
           (t (error "Neither string nor dom-node given to the Data command.")))
+    (if (dom-node-p datanode) ()
+      (error "syncml-create-data-command: Result not a DOM node"))
     datanode))
 
 ;; syncml-create-data-command-cdata ()
@@ -128,6 +130,8 @@ Example: <Data>212<Data>   Indicates a successful authentication."
           ((dom-node-p mydata)
            (dom-node-append-child datanode mydata))
           (t (error "Neither string nor dom-node given to the Data command.")))
+    (if (dom-node-p datanode) ()
+      (error "syncml-create-data-command-cdata: Result not a DOM node"))
     datanode))
 
 ;; syncml-create-meta-command ()

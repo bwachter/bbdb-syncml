@@ -435,11 +435,15 @@ BBDB-SYNCML-DELETED-LUIDS
                                                          (car (xpath-resolve
                                                                (dom-document-element syncml-response-doc)
                                                                "descendant::Status/child::Data[position()=1]"))))
+                            ;; Set an empty LocURI if it does not exist in the response; GooSync is one
+                            ;; of the services requiring this
                             (syncml-create-targetref-command pkg5-doc
-                                                             (dom-node-text-content
-                                                              (car (xpath-resolve
-                                                                    (dom-document-element syncml-response-doc)
-                                                                    "descendant::SyncHdr/Source/LocURI"))))
+                                                             (condition-case nil
+                                                                 (dom-node-text-content
+                                                                  (car (xpath-resolve
+                                                                        (dom-document-element syncml-response-doc)
+                                                                        "descendant::SyncHdr/Source/LocURI")))
+                                                               (error "")))
                             (syncml-create-sourceref-command pkg5-doc syncml-source-locuri)))
     ;; Note: the <Map> command must be removed from the package before sending to the server if no <MapItem>s have been added to it!
     (dom-node-append-child syncbody-pkg5-node map-pkg5-node)
@@ -994,11 +998,11 @@ It also updates the BBDB-SYNCML-PKG5-OK-LUIDS variable, to be stored in the mapp
                    (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "%S" (dom-node-write-to-string add-node))
                    (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "%S" (dom-node-text-content (car (xpath-resolve add-node "child::Item/child::Data"))))
                    (let* (
-			  (vcard-raw (dom-node-text-content (car (xpath-resolve add-node "child::Item/child::Data"))))
-			  (vcard (replace-recexp-in-string "\r\n" "\n" vcard-raw))
-			  (newrecord (bbdb-vcard-import-vcard vcard))
-			  )
-		     (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "%S" vcard)
+                          (vcard-raw (dom-node-text-content (car (xpath-resolve add-node "child::Item/child::Data"))))
+                          (vcard (replace-regexp-in-string "\r\n" "\n" vcard-raw))
+                          (newrecord (bbdb-vcard-import-vcard vcard))
+                          )
+                     (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "%S" vcard)
 
                      (bbdb-record-putprop newrecord 'luid bbdb-syncml-next-luid)
                      (bbdb-record-putprop newrecord 'creation-date syncml-current-timestamp)
@@ -1062,9 +1066,9 @@ It also updates the BBDB-SYNCML-PKG5-OK-LUIDS variable, to be stored in the mapp
                      (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "Record with luid %s deleted." luid-to-delete )
                      (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "Modified record - about to create new record.")
                      (let* (
-			    (vcard-raw (dom-node-text-content (car (xpath-resolve add-node "child::Item/child::Data"))))
-			    (vcard (replace-recexp-in-string "\r\n" "\n" vcard-raw))
-			    (newrecord (bbdb-vcard-import-vcard vcard)))
+                            (vcard-raw (dom-node-text-content (car (xpath-resolve add-node "child::Item/child::Data"))))
+                            (vcard (replace-regexp-in-string "\r\n" "\n" vcard-raw))
+                            (newrecord (bbdb-vcard-import-vcard vcard)))
                        (bbdb-record-putprop newrecord 'luid luid-to-delete)
                        (bbdb-record-putprop newrecord 'creation-date syncml-current-timestamp)
                        ;; because of delay in this program, we temporarily disabling the automatic timestamp hook, as we want to use the
