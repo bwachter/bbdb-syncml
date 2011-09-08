@@ -1,126 +1,124 @@
 <?xml version="1.0" encoding="ISO-8859-1" ?>
-<!DOCTYPE article PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN" 
+<!DOCTYPE article PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN"
 "http://www.oasis-open.org/docbook/xml/4.0/docbookx.dtd"
 >
 
 <article>
-	<articleinfo>
-		<title>bbdb-syncml Installation Guide</title>
-		<author>
-			<firstname>Jørgen</firstname>
-			<surname>Binningsbø</surname>
-		</author>
-	</articleinfo>
+        <articleinfo>
+                <title>bbdb-syncml Installation Guide</title>
+                <author>
+                        <firstname>Jørgen</firstname>
+                        <surname>Binningsbø</surname>
+                </author>
+        </articleinfo>
 
-	<section>
-		<title>Introduction</title>
-		<para><emphasis>bbdb-syncml</emphasis> is an elisp package which lets the <ulink url="http://bbdb.sf.net/">The Insidious Big Brother Database (BBDB)</ulink> act as a <ulink url="http://www.syncml.org/">SyncML</ulink> client. With this package, you can synchronize your BBDB database with any SyncML server (or device which can act as a server). </para>
-		<para>Note that bbdb-syncml is a work in progress, and is currently considered unstable at best.</para>
-	</section>
-
-
-	<section>
-		<title>How it works</title>
-		<para>The bbdb-syncml package synchronizes bbdb records converted to vcards with a SyncML server.  There will be added a custom field to the bbdb called <emphasis>LUID</emphasis>. This is the ID used for matching a local bbdb record with it's server counterpart.  LUIDs should be unique over the lifespan of your BBDB database. (that is: don't change or assign the luids yourself, and never re-use a luid which have been previuosly used by a deleted record.)</para>
-		<para>The SyncML standard say very little about <emphasis>how</emphasis> your synchronization objects are represented. For the BBDB, two alternatives comes to mind: Storing bbdb record in their native lisp format on the server, or converting them to some other format before syncing.  For me, my target syncing devices are the Evolution program and a Sony Ericsson P800 mobile phone (when I'm able to afford it...) Both these devices use the VCARD standard for their address book, and therefore the bbdb-syncml package uses vcard as the format of the synchronization objects.</para>
-		<para>bbdb-syncml uses a <emphasis>mapping file</emphasis> to keep track of 1) which records where present in the database during the last sync, and 2) the value of the next luid to assign to a new record.</para>
-	</section>
+        <section>
+                <title>Introduction</title>
+                <para><emphasis>bbdb-syncml</emphasis> is an elisp package which lets the <ulink url="http://bbdb.sf.net/">The Insidious Big Brother Database (BBDB)</ulink> act as a <ulink url="http://www.syncml.org/">SyncML</ulink> client. With this package, you can synchronize your BBDB database with any SyncML server (or device which can act as a server). </para>
+                <para>Note that bbdb-syncml is a work in progress, and is currently considered unstable at best.</para>
+        </section>
 
 
-	<section>
-		<title>Requirements</title>
-		<para>bbdb-syncml has a number of requirements, and you should pay close attention to all installation steps.</para>
+        <section>
+                <title>How it works</title>
+                <para>The bbdb-syncml package synchronizes bbdb records converted to vcards with a SyncML server.  There will be added a custom field to the bbdb called <emphasis>LUID</emphasis>. This is the ID used for matching a local bbdb record with it's server counterpart.  LUIDs should be unique over the lifespan of your BBDB database. (that is: don't change or assign the luids yourself, and never re-use a luid which have been previuosly used by a deleted record.)</para>
+                <para>The SyncML standard say very little about <emphasis>how</emphasis> your synchronization objects are represented. For the BBDB, two alternatives comes to mind: Storing bbdb record in their native lisp format on the server, or converting them to some other format before syncing.  For me, my target syncing devices are the Evolution program and a Sony Ericsson P800 mobile phone (when I'm able to afford it...) Both these devices use the VCARD standard for their address book, and therefore the bbdb-syncml package uses vcard as the format of the synchronization objects.</para>
+                <para>bbdb-syncml uses a <emphasis>mapping file</emphasis> to keep track of 1) which records where present in the database during the last sync, and 2) the value of the next luid to assign to a new record.</para>
+        </section>
 
-		<variablelist>
-			<varlistentry>
-				<term>A SyncML server</term>
-				<listitem>
-					<para>If you don't have a SyncML server, there is no point in installing this package.  Without a SyncML server to talk to, bbdb-syncml can do nothing. I use the <ulink url="http://sync4j.sf.net/">sync4j</ulink> server, which is a Java2 Enterprise Edition (J2EE) application.</para>					
-				</listitem>
-			</varlistentry>
-			
-			<varlistentry>
-				<term>The BBDB</term>
-				<listitem>
-					<para>If you don't use the BBDB, there is of course also no point in installing this pacakge.</para>
-				</listitem>
-			</varlistentry>
-			
-			<varlistentry>
-				<term>URL elisp package</term>
-				<listitem>
-					<para>Needed to make http calls to the syncml server. Available from <ulink url="http://www.gnu.org/software/url/">here.</ulink></para>
-				</listitem>
-			</varlistentry>
-			
-			<varlistentry>
-				<term>XML parser elisp package</term>
-				<listitem>
-					<para>Distributed as a part of Gnus and Emacs21. Please see <ulink url="http://www.emacswiki.org/cgi-bin/wiki.pl?XmlParser">XMLParser section in the emacswiki.</ulink></para>
-				</listitem>
-			</varlistentry>
-			
-			<varlistentry>
-				<term>DOM and XPATH elisp tools</term>
-				<listitem>
-					<para>Also available from the <ulink url="http://www.emacswiki.org/cgi-bin/wiki.pl?XmlParser">XMLParser section in the emacswiki.</ulink></para>
-					<para>Note that xpath-parser.el only works with older CVS versions of the wisent package from the <ulink url="http://cedet.sf.net/">Cedet package</ulink>. I've checked out a CVS tree from 20020101, and this works for me, although my speedbar and semantic behavoiur in emacs has become a bit strange.</para>
-				</listitem>
-			</varlistentry>
-			
-			<varlistentry>
-				<term>VCARD elisp tools</term>
-				<listitem>
-					<para>bbdb-syncml uses VCARD as the representation format.  You need the files for export and import. See <ulink url="http://www.emacswiki.org/cgi-bin/wiki.pl?BbdbSyncWithPalm">BBDBSyncWithPalm in emacswiki</ulink>.</para>
-				</listitem>
-			</varlistentry>
-		</variablelist>
-	</section>
-	
-	<section>
-		<title>Installation</title>
-		<para>Detailed installation instructions goes here.</para>
-		<itemizedlist>
-			<listitem>
-				<para>Install the required software, and make sure all elisp packages are in the load-path.</para>
-			</listitem>
-			<listitem>
-				<para>Set the following variables to suit your installation.</para>
-				<orderedlist>
-					<listitem>
-						<para>syncml-host</para>
-					</listitem>
-					<listitem>
-						<para>syncml-target-locuri</para>
-					</listitem>
-					<listitem>
-						<para>syncml-source-locuri</para>
-					</listitem>
-					<listitem>
-						<para>syncml-target-database</para>
-					</listitem>
-					<listitem>
-						<para>syncml-source-database (can be anything, i believe)</para>
-					</listitem>
-					<listitem>
-						<para>syncml-credential (authentication not supported yet)</para>
-					</listitem>
-				</orderedlist>
-			</listitem>
-			
-			<listitem>
-				<para>run the following elisp function: <computeroutput>bbdb-syncml-initialize</computeroutput>. (This can be done from the *scratch* buffer, byu writing (bbdb-syncml-initialize), placing the point behind the closing parathensis, and press C-x C-e.)</para>
-				<para>This will add the custom field <emphasis>luid</emphasis> to your BBDB-database. Also the mapping file will be created.</para>
-				<para>This shall only be done once.</para>
-			</listitem>
-			<listitem>
-				<para>Whenever you want to make a sync, run the <computeroutput>bbdb-syncml-synchronize</computeroutput> function.</para>
-			</listitem>
-		</itemizedlist>
-		
-		
-	</section>
-	
+
+        <section>
+                <title>Requirements</title>
+                <para>bbdb-syncml has a number of requirements, and you should pay close attention to all installation steps.</para>
+
+                <variablelist>
+                        <varlistentry>
+                                <term>A SyncML server</term>
+                                <listitem>
+                                        <para>If you don't have a SyncML server, there is no point in installing this package.  Without a SyncML server to talk to, bbdb-syncml can do nothing. I use the <ulink url="http://sync4j.sf.net/">sync4j</ulink> server, which is a Java2 Enterprise Edition (J2EE) application.</para>
+                                </listitem>
+                        </varlistentry>
+
+                        <varlistentry>
+                                <term>The BBDB</term>
+                                <listitem>
+                                        <para>If you don't use the BBDB, there is of course also no point in installing this pacakge.</para>
+                                </listitem>
+                        </varlistentry>
+
+                        <varlistentry>
+                                <term>URL elisp package</term>
+                                <listitem>
+                                        <para>Needed to make http calls to the syncml server. Available from <ulink url="http://www.gnu.org/software/url/">here.</ulink></para>
+                                </listitem>
+                        </varlistentry>
+
+                        <varlistentry>
+                                <term>XML parser elisp package</term>
+                                <listitem>
+                                        <para>Distributed as a part of Gnus and Emacs21. Please see <ulink url="http://www.emacswiki.org/cgi-bin/wiki.pl?XmlParser">XMLParser section in the emacswiki.</ulink></para>
+                                </listitem>
+                        </varlistentry>
+
+                        <varlistentry>
+                                <term>DOM and XPATH elisp tools</term>
+                                <listitem>
+                                        <para>Also available from the <ulink url="http://www.emacswiki.org/cgi-bin/wiki.pl?XmlParser">XMLParser section in the emacswiki.</ulink></para>
+                                        <para>xpath-parser requires wisent, which is included in recent versions of Emacs. To use the versions in the Wiki with wisent included in Emacs you need to change (require 'wisent) to (require 'semantic/wisent), and (eval-when-compile (require 'wisent-comp)) to (eval-when-compile (require 'semantic/wisent/comp)). There is a modified version of the required files in the contrib subdirectory</para>
+                                </listitem>
+                        </varlistentry>
+
+                        <varlistentry>
+                                <term>VCARD elisp tools</term>
+                                <listitem>
+                                        <para>bbdb-syncml uses VCARD as the representation format.  You need the files for export and import. See <ulink url="http://www.emacswiki.org/cgi-bin/wiki.pl?BbdbSyncWithPalm">BBDBSyncWithPalm in emacswiki</ulink>.</para>
+                                </listitem>
+                        </varlistentry>
+                </variablelist>
+        </section>
+
+        <section>
+                <title>Installation</title>
+                <para>Detailed installation instructions goes here.</para>
+                <itemizedlist>
+                        <listitem>
+                                <para>Install the required software, and make sure all elisp packages are in the load-path.</para>
+                        </listitem>
+                        <listitem>
+                                <para>Set the following variables to suit your installation.</para>
+                                <orderedlist>
+                                        <listitem>
+                                                <para>syncml-host</para>
+                                        </listitem>
+                                        <listitem>
+                                                <para>syncml-target-locuri</para>
+                                        </listitem>
+                                        <listitem>
+                                                <para>syncml-source-locuri</para>
+                                        </listitem>
+                                        <listitem>
+                                                <para>syncml-target-database</para>
+                                        </listitem>
+                                        <listitem>
+                                                <para>syncml-source-database (can be anything, i believe)</para>
+                                        </listitem>
+                                        <listitem>
+                                                <para>syncml-credential (authentication not supported yet)</para>
+                                        </listitem>
+                                </orderedlist>
+                        </listitem>
+
+                        <listitem>
+                                <para>run the following elisp function: <computeroutput>bbdb-syncml-initialize</computeroutput>. (This can be done from the *scratch* buffer, byu writing (bbdb-syncml-initialize), placing the point behind the closing parathensis, and press C-x C-e.)</para>
+                                <para>This will add the custom field <emphasis>luid</emphasis> to your BBDB-database. Also the mapping file will be created.</para>
+                                <para>This shall only be done once.</para>
+                        </listitem>
+                        <listitem>
+                                <para>Whenever you want to make a sync, run the <computeroutput>bbdb-syncml-synchronize</computeroutput> function.</para>
+                        </listitem>
+                </itemizedlist>
+
+
+        </section>
+
 </article>
-
-
