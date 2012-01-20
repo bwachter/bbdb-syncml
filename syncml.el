@@ -142,7 +142,15 @@ the calling function to carry on sensible actions based on this response."
   (syncml-send-message-with-curl (syncml-header slow-sync)))
 
 
-
+(defun syncml-generate-uri (hostname uri)
+  "Return a URI concatenated from hostname and uri, or just uri if already starts with https?://"
+  (let ((_uri uri))
+    (if (string-match "^https?://" uri)
+        ()
+      (setq _uri (concat hostname uri))
+      )
+    _uri
+    ))
 
 
 (defun syncml-send-message-with-curl (doc &optional respuri)
@@ -169,8 +177,8 @@ The response from the server is stored in the syncml-response-doc variable."
   (syncml-debug 2 'syncml-send-message-with-curl "Posting following message to server:\n %S" (buffer-string))
 
   (if (not (null syncml-next-respuri))
-      (setq syncml-response-uri (concat syncml-host syncml-next-respuri))
-    (setq syncml-response-uri (concat syncml-host syncml-target-locuri)))
+      (setq syncml-response-uri (syncml-generate-uri syncml-host syncml-next-respuri))
+    (setq syncml-response-uri (syncml-generate-uri syncml-host syncml-target-locuri)))
 
   (syncml-debug 1 'syncml-send-message-with-curl "Posting to server URL: %s" syncml-response-uri)
 
@@ -214,8 +222,11 @@ The response from the server is stored in the syncml-response-doc variable."
 
     ;; Start parsing from the <SyncML> tag
     (goto-char (point-min))
-    ;;(search-forward-regexp "<SyncML\\(>\\| xmlns=\\\"\\S *\\\">\\)") FIXME: should both match ' and "
-    (search-forward-regexp "<SyncML\\(>\\| xmlns='\\S *'>\\)") ;;multisync specifies the namespace, others i've tested don't have this
+
+    ; Seems like some implementations use ", so we match both ' and "
+    ; multisyng and google use namespaces, so we match namespaces as well
+    ; multiple xmlns attributes are fine as well
+    (search-forward-regexp "<SyncML\\(>\\|\\( xmlns\\(:[^: ]+\\)?=['\\\"]\\S *['\\\"]\\)+>\\)")
     (move-to-column 0)
 
     ;; Parse the rest of the buffer and store result in SYNCML-RESPONSE-DOC
