@@ -1,3 +1,4 @@
+;; -*- lexical-binding: t; -*-
                                         ;
                                         ; I AM HERE NOW
                                         ;

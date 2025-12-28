@@ -1,4 +1,4 @@
-;; syncml.el -- An elisp implementation of a SyncML client.
+;; syncml.el -- An elisp implementation of a SyncML client. -*- lexical-binding: t; -*-
 ;; $Id: syncml.el,v 1.10 2006/04/06 20:37:05 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø
@@ -47,57 +47,18 @@
 (require 'syncml-constants)
 (require 'syncml-commands)
 
+;; TODO, we probably want to clean up some of the variables
+(defvar syncml-doing-slow-sync)
+(defvar syncml-response-doc)
+(defvar syncml-next-respuri)
+(defvar syncml-data)
+(defvar syncml-response-uri)
+(defvar syncml-response-xml)
+(defvar curl-process)
+
 ;;; Setting debug level to max:
 (setq syncml-debug t)
 (setq url-debug t)
-
-(defvar syncml-host "http://localhost:8000/sync4j/sync")
-
-(defvar syncml-target-locuri "localhost"
-  "*The target host URI.")
-
-(defvar syncml-source-locuri "bbdb@mymachine"
-  "*The source host URI.)")
-
-(defvar syncml-target-database "db"
-  "*The target database")
-
-(defvar syncml-source-database "db"
-  "*The target database")
-
-(defvar syncml-credential "notused?"
-  "*The credential name.")
-
-(defvar syncml-user "syncml"
-  "*The name of the user, sent in the <Auth> block")
-
-(defvar syncml-passwd "syncml"
-  "*The password of syncml-user.  if encrypted, this should be the MD5 or whatever representation")
-
-(defvar syncml-use-md5 't
-  "*If we shall use the md5 algorithm for the authentication")
-
-(defvar syncml-current-sessionid ""
-  "*The session id <SessionID> used by the current or just-completed SyncML session.")
-
-(defvar syncml-current-msgid 1
-  "*The message id <MsgID> used by within the current SyncML session.")
-
-(defvar syncml-current-cmdid 1
-  "*The command id <CmdID> for the current command within the current SyncML message.")
-
-(defvar syncml-current-timestamp nil
-  "*The timestamp at the start of the synchronization session. Inserted into the <Next>
-tag in the initialization package.")
-
-(defvar syncml-previous-timestamp nil
-  "*The timestamp at the previous synchronization.")
-
-(defvar syncml-transmit-buffername "*syncml-transmit*"
-  "The name of the buffer containing a syncml-message to transmit to the server")
-
-(defvar syncml-response-buffername "*syncml-response*"
-  "The name of the buffer containing the syncml-message returned from the server")
 
 (defun syncml-create-sessionid ()
   "Sets the variable syncml-current-sessionid to a new session id.
@@ -110,17 +71,17 @@ from 1 within each unique session."
   (setq syncml-current-msgid 0)
   (syncml-debug 1 'syncml "Created session id: %S" syncml-current-sessionid))
 
-(defun syncml-increase-msgid (&optional sessionid)
+(defun syncml-increase-msgid (&optional _sessionid)
   "Increases the MsgID number with 1. CmdID is set to 1 at the same time."
   (setq syncml-current-msgid (+ syncml-current-msgid 1))
   (setq syncml-current-cmdid 1))
 
-(defun syncml-increase-cmdid (&optional sessionid)
+(defun syncml-increase-cmdid (&optional _sessionid)
   "Increases the CmdID number with 1."
   (setq syncml-current-cmdid (+ syncml-current-cmdid 1)))
 
 
-(defun syncml-locuid (&optional hostname)
+(defun syncml-locuid (&optional _hostname)
   "Generate a luid token to register at the SyncML server"
   (let* ((luid (concat "emacs-syncml-"
                        (car (split-string (system-name) "\\."))
@@ -131,10 +92,12 @@ from 1 within each unique session."
     ))
 
 (defun syncml-init (&optional slow-sync)
-  "Initialized a SyncML request. If SLOW-SYNC is 't, then a request for a slow sync is forced.
+  "Initialized a SyncML request. If SLOW-SYNC is \='t, then a request for a
+slow sync is forced.
 
-The response from server is stored in the SYNCML-RESPONSE-DOC variable, and it is the duty of
-the calling function to carry on sensible actions based on this response."
+The response from server is stored in the SYNCML-RESPONSE-DOC variable, and it
+is the duty of the calling function to carry on sensible actions based on this
+response."
   ;; reset the slow-sync flag.
   (setq syncml-doing-slow-sync slow-sync)
   (syncml-create-sessionid)
@@ -143,20 +106,21 @@ the calling function to carry on sensible actions based on this response."
 
 
 (defun syncml-generate-uri (hostname uri)
-  "Return a URI concatenated from hostname and uri, or just uri if already starts with https?://"
-  (let ((_uri uri))
+  "Return a URI concatenated from hostname and uri, or just uri if already
+starts with https?://"
+  (let ((myuri uri))
     (if (string-match "^https?://" uri)
         ()
-      (setq _uri (concat hostname uri))
+      (setq myuri (concat hostname uri))
       )
-    _uri
+    myuri
     ))
 
 
-(defun syncml-send-message-with-curl (doc &optional respuri)
+(defun syncml-send-message-with-curl (doc &optional _respuri)
   "
-This function sends a Document Object Model (DOM) document DOC to the syncml server,
-using curl (http://curl.haxx.se/) as a bearer.
+This function sends a Document Object Model (DOM) document DOC to the syncml
+server, using curl (http://curl.haxx.se/) as a bearer.
 The response from the server is stored in the syncml-response-doc variable."
 
   (syncml-debug 3 'syncml-send-message-with-curl "Triggered")
@@ -263,7 +227,8 @@ The response from the server is stored in the syncml-response-doc variable."
   "Returns a syncml header <SyncHdr> tag.  If arguments are supplied, they
 will be used instead of their respective global variables.
 
-XML Definition: SyncHdr: (VerDTD, VerProto, SessionID, MsgID, Target, Source, RespURI?, NoResp?, Cred?, Meta?)"
+XML Definition: SyncHdr: (VerDTD, VerProto, SessionID, MsgID, Target, Source,
+RespURI?, NoResp?, Cred?, Meta?)"
   (syncml-debug 3 'syncml-header "Function started.")
   (let* ((syncml-transmit-doc (syncml-create-syncml-document))
          (syncmlnode (dom-document-element syncml-transmit-doc))
@@ -318,7 +283,7 @@ XML Definition: SyncHdr: (VerDTD, VerProto, SessionID, MsgID, Target, Source, Re
                                (list
                                 (syncml-create-devinf-synctype-command syncml-transmit-doc "1")
                                 (syncml-create-devinf-synctype-command syncml-transmit-doc "2")))))))
-         (put-node (syncml-create-put-command
+         (_put-node (syncml-create-put-command
                     syncml-transmit-doc
                     (syncml-create-item-command syncml-transmit-doc
                                                 nil
@@ -362,7 +327,8 @@ First it checks the header, and then processes each command in the body in turn.
 
 
 (defun syncml-process-command (node)
-  "Processes the command NODE, which can be of any type (ALERT, ADD, GET, STATUS, SYNC...)"
+  "Processes the command NODE, which can be of any type (ALERT, ADD, GET,
+STATUS, SYNC...)"
   (syncml-debug 1 'syncml-process-command "Triggered. Is the node a dom-node?: %S" (dom-node-p node))
   (syncml-debug 1 'syncml-process-command "Is the node a dom-element?: %S" (dom-element-p node))
   (if (not (dom-element-p node))
@@ -382,7 +348,8 @@ First it checks the header, and then processes each command in the body in turn.
 (defun syncml-process-status-command (node)
   "Processes the NODE which must be a <Status> node
 
-XML definition: <Status>: (CmdID, MsgRef, CmdRef, Cmd, TargetRef*, SourceRef*, Cred?, Chal?, Data, Item*)
+XML definition: <Status>: (CmdID, MsgRef, CmdRef, Cmd, TargetRef*, SourceRef*,
+Cred?, Chal?, Data, Item*)
 
 TODO:  how to let this command control program flow ?"
   (let ((syncml-cmd (dom-node-text-content (car (xpath-resolve node "child::Cmd"))))
@@ -414,7 +381,7 @@ TODO:  how to let this command control program flow ?"
 (defun syncml-process-alert-command (node)
   "Processes the NODE which must be an <Alert> node"
   (syncml-debug 1 'syncml-process-alert-command "Triggered.")
-  (let ((syncml-cmdid (dom-node-text-content (car (xpath-resolve node "child::CmdID"))))
+  (let ((_syncml-cmdid (dom-node-text-content (car (xpath-resolve node "child::CmdID"))))
         (syncml-data (dom-node-text-content (car (xpath-resolve node "child::Data")))))
     (syncml-debug 1 'syncml-process-alert-command "Server sent alert command %S: %S" syncml-data (syncml-lookup-alert-code syncml-data))
     ;;    (cond ((string= "404" syncml-data)
@@ -432,7 +399,8 @@ TODO:  how to let this command control program flow ?"
 
 
 (defun syncml-process-response-buffer (syncml-buffer)
-  "Process the buffer SYNCML-BUFFER. Builds up a DOM tree and stores it in syncml-response-doc."
+  "Process the buffer SYNCML-BUFFER. Builds up a DOM tree and stores it in
+syncml-response-doc."
   (syncml-debug 1 'syncml-process-response-buffer "Called.")
   (set-buffer syncml-buffer)
   (goto-char (point-min))
@@ -445,18 +413,17 @@ TODO:  how to let this command control program flow ?"
 
 
 (defun syncml-get-temp-buffer-name ()
-  "Get a working buffer name such as ` *XML-RPC-<i>*' without a live process \
+  "Get a working buffer name such as ` *XML-RPC-<i>*' without a live process
 and empty it"
   (let ((num 1)
         name buf)
     (while (progn (setq name (format " *SYNCML-%d*" num)
                         buf (get-buffer name))
                   (and buf (or (get-buffer-process buf)
-                               (save-excursion (set-buffer buf)
+                               (with-current-buffer buf
                                                (> (point-max) 1)))))
       (setq num (1+ num)))
     name))
-
 
 
 (defun syncml-lookup-response-code (code)

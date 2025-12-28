@@ -1,4 +1,4 @@
-;; syncml-commands.el -- An elisp implementation of a SyncML client. This file contains the syncml commands
+;; syncml-commands.el -- An elisp implementation of a SyncML client. This file contains the syncml commands -*- lexical-binding: t; -*-
 ;; $Id: syncml-commands.el,v 1.8 2006/04/06 20:37:05 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø
@@ -40,12 +40,15 @@
 (require 'dom)
 (require 'dom-loadsave)
 
+(require 'bbdb-syncml-vars)
+
 (require 'syncml-debug)
 (require 'syncml-constants)
 
 ;; syncml-create-syncml-document
 (defun syncml-create-syncml-document ()
-  "*Creates a new DOM document having top-level element <SyncML> and returning this element node"
+  "*Creates a new DOM document having top-level element <SyncML> and returning
+this element node"
   (syncml-debug 3 'syncml-create-syncml-command "Function started.")
   (let* ((syncmldoc (make-dom-document :name "MySyncMLDocument"
                                        :type dom-document-node))
@@ -76,9 +79,12 @@
 
 ;; syncml-create-syncbody-command
 (defun syncml-create-syncbody-command (ownerdoc)
-  "*Creates a DOM element node corresponding to an empty <SyncBody> command. This node must be filled with children.
+  "*Creates a DOM element node corresponding to an empty <SyncBody> command.
 
-XML declaration: ((Alert | Atomic | Copy | Exec | Get | Map | Put | Results | Search | Sequence | Status | Sync | Add | Replace | Delete)+, Final?)"
+This node must be filled with children.
+
+XML declaration: ((Alert | Atomic | Copy | Exec | Get | Map | Put | Results |
+Search | Sequence | Status | Sync | Add | Replace | Delete)+, Final?)"
   (syncml-debug 3 'syncml-create-syncbody-command "Function Started.")
   (let* ((syncbodynode (dom-document-create-element ownerdoc "SyncBody"))
          )
@@ -145,7 +151,8 @@ Example: <Data>212<Data>   Indicates a successful authentication."
 (defun syncml-create-meta-command (ownerdoc metadata)
   "*Returns a DOM node corresponding to a SyncML <Meta> command.
 
-METADATA is either a string or a dom-node. if a dom-node, it's owner-document should be identical to OWNERDOC."
+METADATA is either a string or a dom-node. if a dom-node, it's owner-document
+should be identical to OWNERDOC."
   (syncml-debug 3 'syncml-create-meta-command "Function started.")
   (let* ((metanode (dom-document-create-element ownerdoc "Meta")))
     (cond ((stringp metadata)
@@ -224,8 +231,8 @@ METADATA is either a string or a dom-node. if a dom-node, it's owner-document sh
 (defun syncml-create-cred-command (ownerdoc)
   "* Returns a DOM node equivalent of the SyncML <Cred> command.
 
-Parent Elements: Add, Alert, Copy, Delete, Exec, Get, Put, Map, Replace, Search, Status, Sync, SyncHdr
-XML declaration: (Meta?, Data)"
+Parent Elements: Add, Alert, Copy, Delete, Exec, Get, Put, Map, Replace, Search,
+Status, Sync, SyncHdr XML declaration: (Meta?, Data)"
   (syncml-debug 3 'syncml-create-cred-command "Function started.")
   (let* ((crednode (dom-document-create-element ownerdoc "Cred")))
     (if (not (null syncml-use-md5))
@@ -254,7 +261,8 @@ XML declaration: (Meta?, Data)"
 (defun syncml-create-sync-command (ownerdoc &optional noresp crednode targetnode  sourcenode metanode )
   "Returns a string with the <Sync> command
 
-XML definition: CmdID, NoResp?, Cred?, Target?, Source?, Meta?, NumberOfChanges?, (Add | Atomic | Copy | Delete | Replace | Sequence)*"
+XML definition: CmdID, NoResp?, Cred?, Target?, Source?, Meta?,
+NumberOfChanges?, (Add | Atomic | Copy | Delete | Replace | Sequence)*"
   (syncml-debug 3 'syncml-create-sync-command "Function started.")
   (let* ((syncnode (dom-document-create-element ownerdoc "Sync")))
     (dom-node-append-child syncnode (syncml-create-cmdid-command ownerdoc))
@@ -316,7 +324,7 @@ CmdID, NoResp?, Cred?, Meta?, Item+)"
 ;;
 ;; Returns a DOM noe corresponding to the SyncML <Delete> command.
 ;; XML definition: (CmdID, NoResp?, Archive?, SftDel?, Cred?, Meta?, Item+)
-(defun syncml-create-delete-command (ownerdoc itemnode &optional metanode crednode noresp archivenode sftdelnode)
+(defun syncml-create-delete-command (ownerdoc itemnode &optional metanode crednode noresp _archivenode _sftdelnode)
   "Returns a string with the <Delete> command
 XML definition: (CmdID, NoResp?, Archive?, SftDel?, Cred?, Meta?, Item+)"
   (syncml-debug 3 'syncml-create-delete-command "Function started.")
@@ -451,7 +459,8 @@ Item: When specified in an Alert, the element type specifies the
 ;; syncml-create-sessionid-command
 ;;
 (defun syncml-create-sessionid-command (ownerdoc)
-  "Returns a <SessionID> node.  Incrementing the sessionid is not done, should be set before sync initialization. (package #1)"
+  "Returns a <SessionID> node.  Incrementing the sessionid is not done, should
+be set before sync initialization. (package #1)"
   (syncml-debug 3 'syncml-create-sessionid-command "Function started")
   (let* ((sessionidnode (dom-document-create-element ownerdoc "SessionID")))
     (dom-node-append-child sessionidnode (dom-document-create-text-node ownerdoc syncml-current-sessionid))
@@ -461,7 +470,9 @@ Item: When specified in an Alert, the element type specifies the
 ;; syncml-create-msgid-command
 ;;
 (defun syncml-create-msgid-command (ownerdoc)
-  "Returns a <MsgID> node.  Incrementing the msgid is not done, should be set before starting to construct each SyncML message. (The messageid shall increase by 1 for each message sent.)"
+  "Returns a <MsgID> node.  Incrementing the msgid is not done, should be set
+before starting to construct each SyncML message. (The messageid shall increase
+by 1 for each message sent.)"
   (syncml-debug 3 'syncml-create-msgid-command "Triggered.")
   (let* ((msgidnode (dom-document-create-element ownerdoc "MsgID")))
     (dom-node-append-child msgidnode (dom-document-create-text-node ownerdoc syncml-current-msgid))

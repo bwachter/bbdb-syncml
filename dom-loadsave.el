@@ -1,4 +1,4 @@
-;; dom-loadsave.el -- An minimalist implementation of the DOM Level 3
+;; dom-loadsave.el -- An minimalist implementation of the DOM Level 3 -*- lexical-binding: t; -*-
 ;;                    Load and Save extension.
 ;; $Id: dom-loadsave.el,v 1.6 2004/06/08 20:21:08 joergenb Exp $
 
@@ -38,7 +38,10 @@
 
 (defconst dom-loadsave-indent 2)
 
-(defun dom-node-write-to-string (node &optional base-indent-level)
+(defvar dom-loadsave-indent-level)
+(defvar dom-loadsave)
+
+(defun dom-node-write-to-string (node &optional _base-indent-level)
   (setq dom-loadsave-indent-level 1)
   (let* ((dummy (dom-node-write-to-string-inner node)))
     (setq dom-loadsave-indent-level 1)

@@ -1,19 +1,17 @@
-;; this file just contains some tests used when developing bbdb-syncml
+;; this file just contains some tests used when developing bbdb-syncml -*- lexical-binding: t; -*-
 
 (require 'dom-loadsave)
 
 ;; how to create elements:
 
-(let* ((myxml "<node1><node2>hei</node2></node1>")
+(let* ((_myxml "<node1><node2>hei</node2></node1>")
        (syncmldoc (make-dom-document
                    :name "hei"
                    :type dom-document-node)))
   (dom-document-create-element syncmldoc "SyncHdr")
   syncmldoc)
 
-
-
-(let* ((myxml "<node1><node2>hei</node2></node1>")
+(let* ((_myxml "<node1><node2>hei</node2></node1>")
        (syncmldoc (make-dom-document
                    :name "MySyncMLDocument"
                    :type dom-document-node
@@ -38,8 +36,6 @@
   mynode)
 
 
-
-
 (let* ((syncmldoc (make-dom-document :name "MySyncMLDocument"
                                      :type dom-document-node))
        (syncmlelement (dom-document-create-element syncmldoc "SyncML")))
@@ -48,12 +44,12 @@
   (dom-node-append-child syncmlelement (syncml-create-data-command syncmldoc "syncml:sdfsdfj"))
   (dom-node-write-to-string syncmldoc))
 ;;  syncmldoc-element)
-syncmldoc)
+;;syncmldoc)
 
-(setq doc (syncml-create-syncml-document))
+;;(setq doc (syncml-create-syncml-document))
 
 (let* ((mydoc (syncml-create-syncml-document))
-       (crednode (syncml-create-cred-command mydoc))
+       (_crednode (syncml-create-cred-command mydoc))
        (mysyncml (dom-document-element mydoc)))
   (dom-node-append-child mysyncml
                          (syncml-create-synchdr-command
@@ -66,22 +62,22 @@ syncmldoc)
 
 
 
-
+(defvar syncml-grrr)
 (let* ((mydoc (syncml-create-syncml-document))
        (mysyncml (dom-document-element mydoc)))
-  (setq grrr (syncml-create-metinf-type-command mydoc "hei"))
-  (dom-node-append-child mysyncml grrr)
+  (setq syncml-grrr (syncml-create-metinf-type-command mydoc "hei"))
+  (dom-node-append-child mysyncml syncml-grrr)
   (dom-node-write-to-string mydoc))
 
-(dom-element-p grrr)
-(dom-node-has-attributes (dom-node-first-child grrr))
-(dom-node-has-attributes  grrr)
-(dom-node-attributes grrr)
-(dom-node-attributes (dom-node-first-child grrr))
+(dom-element-p syncml-grrr)
+(dom-node-has-attributes (dom-node-first-child syncml-grrr))
+(dom-node-has-attributes  syncml-grrr)
+(dom-node-attributes syncml-grrr)
+(dom-node-attributes (dom-node-first-child syncml-grrr))
 (dom-attr-p )
 
 (let (res)
-  (dolist (innernode (dom-node-attributes grrr) res)
+  (dolist (innernode (dom-node-attributes syncml-grrr) res)
     (if (dom-attr-p innernode)
         (push (concat (if (symbolp (dom-node-name innernode))
                           (symbol-name (dom-node-name innernode))
@@ -119,7 +115,7 @@ syncmldoc)
 
 
 (dom-node-append-child (dom-document-element syncmldoc) mynode)
-(dom-node-write-to-string syncmldoc))
+(dom-node-write-to-string syncmldoc)
                                         ;  syncmldoc)
 
 
@@ -199,7 +195,7 @@ syncmldoc)
 
 ;; xml-rpc related:
 
-(require 'xml-rpc "/home/jb/src/lisp/xml-rpc.el")
+;;(require 'xml-rpc "/home/jb/src/lisp/xml-rpc.el")
 (defun cb-foo (foo)
   (print (format "%s" foo)))
 

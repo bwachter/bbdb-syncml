@@ -1,4 +1,4 @@
-;; This files contain debug utilities for the syncml package.
+;; This files contain debug utilities for the syncml package. -*- lexical-binding: t; -*-
 ;; $Id: syncml-debug.el,v 1.2 2004/01/17 16:30:16 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø
@@ -32,7 +32,9 @@
 (defcustom syncml-debug-level 0
   "*The debug level to use.  When debug level is set to an INTEGER,
 all debug messages <= INTEGER will be printed.
-Thus, the higher the debug level, the more garbage you'll get :)")
+Thus, the higher the debug level, the more garbage you'll get :)"
+  :type 'integer
+  :group 'syncml-hairy)
 
 (defcustom syncml-debug nil
   "*What types of debug messages from the SYNCML library to show.
@@ -59,8 +61,7 @@ If a list, it is a list of the types of messages to be logged."
            (or (eq syncml-debug t)
                (numberp syncml-debug)
                (and (listp syncml-debug) (memq tag syncml-debug))))
-      (save-excursion
-        (set-buffer (get-buffer-create "*SYNCML-DEBUG*"))
+      (with-current-buffer (get-buffer-create "*SYNCML-DEBUG*")
         (goto-char (point-max))
         (insert (current-time-string) "[" (number-to-string level) "]: " (symbol-name tag) " -> " (apply 'format args) "\n")
         (if (numberp syncml-debug)

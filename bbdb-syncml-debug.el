@@ -1,4 +1,4 @@
-;; bbdb-syncml-debug.el: This files contain debug utilities for the bbdb-syncml package.
+;; bbdb-syncml-debug.el: This files contain debug utilities for the bbdb-syncml package. -*- lexical-binding: t; -*-
 ;; $Id: bbdb-syncml-debug.el,v 1.3 2004/01/17 16:30:16 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø
@@ -33,10 +33,14 @@
 (defcustom bbdb-syncml-debug-level 0
   "*The debug level to use.  When debug level is set to an INTEGER,
 all debug messages <= INTEGER will be printed.
-Thus, the higher the debug level, the more garbage you'll get :)")
+Thus, the higher the debug level, the more garbage you'll get :)"
+  :type 'integer
+  :group 'bbdb-syncml)
 
 (defcustom bbdb-syncml-debug-duplicate-in-syncml-debug nil
-  "*If non-nil, duplicate all bbdb-syncml log messages to the syncml log.")
+  "*If non-nil, duplicate all bbdb-syncml log messages to the syncml log."
+  :type 'boolean
+  :group 'bbdb-syncml)
 
 (defcustom bbdb-syncml-debug nil
   "*What types of debug messages from the BBDB-SYNCML library to show.
@@ -65,8 +69,7 @@ If a list, it is a list of the types of messages to be logged."
              (or (eq bbdb-syncml-debug t)
                  (numberp bbdb-syncml-debug)
                  (and (listp bbdb-syncml-debug) (memq tag bbdb-syncml-debug))))
-        (save-excursion
-          (set-buffer (get-buffer-create "*BBDB-SYNCML-DEBUG*"))
+        (with-current-buffer (get-buffer-create "*BBDB-SYNCML-DEBUG*")
           (goto-char (point-max))
           (insert (current-time-string) "[" (number-to-string level) "]: " (symbol-name tag) "  -> " (apply 'format args) "\n")
           (if (numberp bbdb-syncml-debug)

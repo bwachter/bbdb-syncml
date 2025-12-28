@@ -1,4 +1,4 @@
-;; bbdb-syncml.el -- A SyncML client for the BBDB database.
+;; bbdb-syncml.el -- A SyncML client for the BBDB database. -*- lexical-binding: t; -*-
 ;; $Id: bbdb-syncml.el,v 1.10 2006/04/06 20:37:05 joergenb Exp $
 
 ;; Copyright (C) 2003 Jørgen Binningsbø
@@ -31,27 +31,11 @@
 (require 'bbdb)
 (require 'bbdb-com)
 (require 'bbdb-syncml-debug)
+(require 'bbdb-syncml-vars)
 (require 'bbdb-vcard)
 (require 'syncml)
 
 (setq bbdb-syncml-debug t)
-
-(defvar bbdb-syncml-bbdb-database "~/.bbdb"
-  "*The BBDB database to use for syncing.")
-
-(defvar bbdb-syncml-mapping-file "~/.bbdb.syncml"
-  "*The file used by bbdb-syncml to keep track of syncing modifications")
-
-(defvar bbdb-syncml-mapping-buffer ""
-  "*The buffer containing the mapping file.")
-
-(defvar bbdb-syncml-next-luid nil
-  "*The value of LUID to be assigned to the next bbdb record. I believe
-this MUST be unique over the lifespan of a BBDB database")
-
-(defvar bbdb-syncml-last-sync-timestamp nil
-  "*The timestamp at the previous successful synchronzation")
-
 
 ;; bbdb-syncml-synchronize
 ;;
@@ -643,6 +627,8 @@ Will not delete LUID notes field from a previuos synchronized dataset."
 ;; - next luid
 ;; - last sync timestamp (?)
 ;; - list of succesful luids in last sync
+;; FIXME, all that stuff can move into syncml with module as parameter
+;; one mapping file with contents like luid-bbdb, timestamp-luid
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;
 
