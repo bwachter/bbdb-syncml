@@ -27,6 +27,15 @@
 ;; Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ;; Boston, MA 02111-1307, USA.
 
+
+;; TODO, we need to fix usage of a few bbdb functions:
+;; - bbdb-record-putprop can be done with bbdb-record-set-field
+;;   (let ((record (car (bbdb-search (bbdb-records) :name "Name"))))
+;;     (bbdb-record-set-field record 'dummyfield "foobar")
+;;     (bbdb-change-record record))
+;; - bbgb-record-getprope is replaced with bbdb-record-field
+;; - bbdb-search now has a new signature, and all calls need to be replaced
+
 (require 'bbdb)
 (require 'bbdb-com)
 (require 'bbdb-syncml-debug)
@@ -480,7 +489,7 @@ or we can request it."
       (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records
                          "Checking record having name and company: %S - %S"
                          (bbdb-record-name node)
-                         (bbdb-record-company node))
+                         (bbdb-record-organization node))
       (if (and (not (null (bbdb-record-getprop node 'luid)))
                (member (string-to-number (bbdb-record-getprop node 'luid)) bbdb-syncml-mapping-luid-list))
           ;; record has a luid and is present in the mapping file. It is not added since last successful sync
@@ -499,7 +508,7 @@ or we can request it."
               (bbdb-record-putprop node 'luid bbdb-syncml-next-luid)
               (bbdb-syncml-increment-luid)
               (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records "Saving BBDB database...")
-              (bbdb-save-db)))
+              (bbdb-save)))
         (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records "Adding luid %S to the list of added luids." (bbdb-record-getprop node 'luid))
         (push (bbdb-record-getprop node 'luid) added-luid-list)))))
 
@@ -517,7 +526,7 @@ or we can request it."
       (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records
                          "Checking record with name and company: %S - %S"
                          (bbdb-record-name node)
-                         (bbdb-record-company node))
+                         (bbdb-record-organization node))
       (if (not (null (bbdb-record-getprop node 'luid))) ;; record has a luid.
           (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records
                              "Record already has LUID: %S" (bbdb-record-getprop node 'luid))
@@ -530,7 +539,7 @@ or we can request it."
           (bbdb-record-putprop node 'luid bbdb-syncml-next-luid)
           (bbdb-syncml-increment-luid)
           (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records "Saving BBDB database...")
-          (bbdb-save-db)))
+          (bbdb-save)))
       (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records "Adding luid %S to the list of all luids." (bbdb-record-getprop node 'luid))
       (push (bbdb-record-getprop node 'luid) all-luid-list))))
 
@@ -556,7 +565,7 @@ trigger the sending replace during next sync"
       (bbdb-syncml-debug 1 'bbdb-syncml-get-modified-records
                          "Checking node: %S - %S"
                          (bbdb-record-name node)
-                         (bbdb-record-company node))
+                         (bbdb-record-organization node))
       (if (null (bbdb-record-getprop node 'luid))
           ;; record does not have a luid. it is added since the TIMESTAMP.
           ;; as bbdb-syncml-get-added-records will add a luid , not in this function.  just debug.
@@ -619,8 +628,7 @@ last sync."
   "Prepares the BBDB database to support SyncML. Should only be called once.
 Creates the mapping file, and adds the luid field to the database.
 Will not delete LUID notes field from a previuos synchronized dataset."
-  (bbdb-add-new-field 'luid)
-  (bbdb-save-db)
+  (bbdb-save)
   (if (file-exists-p bbdb-syncml-mapping-file)
       (progn (bbdb-syncml-debug 1 'bbdb-syncml-initialize "Already initalized. Prompt user to re-initialize.")
              (if (not (y-or-n-p "You have already initialized this BBDB. Do you want to re-initalize?"))
@@ -798,10 +806,11 @@ having one."
       ;; record does not have a luid. Create one, and increment counter.
       (bbdb-syncml-debug 1 'bbdb-syncml-assign-luids "Node unhas luid. assigning %S." bbdb-syncml-next-luid)
       (bbdb-record-putprop node 'luid bbdb-syncml-next-luid)
-      (bbdb-save-db)
+      (bbdb-save)
       (bbdb-syncml-increment-luid)))
-  (bbdb-save-db)
-  (bbdb-redisplay-records)
+  (bbdb-save)
+  ;; TODO, bbdb3 should automatically redisplay - test if that indeed happens
+  ;;(bbdb-redisplay-records)
   )
 
 (defun bbdb-syncml-validate-luids (reassign)
@@ -1034,7 +1043,7 @@ mapping list."
                      ;;                   (describe-variable 'bbdb-change-hook))
                      ;;(sleep-for 1)
                      (bbdb-record-putprop newrecord 'timestamp syncml-current-timestamp)
-                     (bbdb-save-db)
+                     (bbdb-save)
                      (add-hook 'bbdb-change-hook 'bbdb-timestamp-hook)
 
                      (bbdb-syncml-increment-luid)
@@ -1082,7 +1091,7 @@ mapping list."
                           (record-to-delete (car (bbdb-syncml-get-record-by-luid luid-to-delete))))
                      (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "About to delete record with luid %s." luid-to-delete )
                      (bbdb-delete-record-internal record-to-delete)
-                     (bbdb-save-db)
+                     (bbdb-save)
                      (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "Record with luid %s deleted." luid-to-delete )
                      (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "Modified record - about to create new record.")
                      (let* (
@@ -1100,7 +1109,7 @@ mapping list."
                        ;                   (describe-variable 'bbdb-change-hook))
 
                        (bbdb-record-putprop newrecord 'timestamp syncml-current-timestamp)
-                       (bbdb-save-db)
+                       (bbdb-save)
                        (add-hook 'bbdb-change-hook 'bbdb-timestamp-hook)
                        (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "Modified record - new record created with same luid %s as old."
                                           (bbdb-record-getprop newrecord 'luid))
@@ -1131,7 +1140,7 @@ mapping list."
                           (record-to-delete (car (bbdb-syncml-get-record-by-luid luid-to-delete))))
                      (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "About to delete record with luid %s." luid-to-delete )
                      (bbdb-delete-record-internal record-to-delete)
-                     (bbdb-save-db)
+                     (bbdb-save)
                      (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "Record with luid %s deleted." luid-to-delete )
                      (let* ((delete-status-node
                              (syncml-create-status-command
