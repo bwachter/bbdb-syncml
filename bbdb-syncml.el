@@ -27,13 +27,31 @@
 ;; Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ;; Boston, MA 02111-1307, USA.
 
-
 (require 'bbdb)
 (require 'bbdb-com)
 (require 'bbdb-syncml-debug)
 (require 'bbdb-syncml-vars)
 (require 'bbdb-vcard)
+
 (require 'syncml)
+
+;; TODO, at minimum we need to fix prefixes for some of those variables
+(defvar bbdb-syncml-existing-luids)
+(defvar bbdb-syncml-added-luids)
+(defvar bbdb-syncml-deleted-luids)
+(defvar bbdb-syncml-modified-luids)
+(defvar bbdb-syncml-mapping-luid-list)
+(defvar bbdb-syncml-package-3)
+(defvar bbdb-syncml-package-5)
+(defvar bbdb-syncml-pkg5-ok-luids)
+(defvar bbdb-syncml-pkg5-not-ok-luids)
+(defvar pkg4-iteration)
+(defvar pkg4-finished)
+(defvar added-luids)
+(defvar modified-luids)
+(defvar deleted-luids)
+(defvar add-node)
+
 
 (setq bbdb-syncml-debug t)
 
@@ -44,7 +62,8 @@
 (defun bbdb-syncml-synchronize (&rest force-slow-sync)
   "Synchronizes the bbdb database with the SyncML server.
 
-See chapter 5 in the 'SyncML Sync Protocol' document available from www.syncml.org"
+See chapter 5 in the \='SyncML Sync Protocol\=' document available from
+www.syncml.org"
   (interactive)
 
   ;; do some initialization
@@ -189,7 +208,8 @@ See chapter 5 in the 'SyncML Sync Protocol' document available from www.syncml.o
 ;;;
 (defun bbdb-syncml-create-package-3-base ()
   "Creates base package #3.
-Note: this function does no sanity-checking of package #2 - it is assumed that this function is called when we are 'ready to go'
+Note: this function does no sanity-checking of package #2 - it is assumed that
+this function is called when we are \='ready to go\='
 "
 
   (bbdb-syncml-debug 2 'bbdb-syncml-create-package-3-base "Starting creating package #3")
@@ -272,7 +292,9 @@ Note: this function does no sanity-checking of package #2 - it is assumed that t
 ;; process BBDB
 ;;
 (defun bbdb-syncml-process-bbdb (pkg3-doc)
-  "Processes the BBDB and adds all <Add>, <Replace> and <Delete> commands to PKG3-DOC
+  "Processes the BBDB and adds all <Add>, <Replace> and <Delete> commands to
+PKG3-DOC
+
 Also sets the global variables
 BBDB-SYNCML-ADDED-LUIDS
 BBDB-SYNCML-MODIFIED-LUIDS
@@ -438,16 +460,17 @@ BBDB-SYNCML-DELETED-LUIDS
     pkg5-doc))
 
 
-(defun bbdb-syncml-get-added-records (&optional timestamp)
+(defun bbdb-syncml-get-added-records (&optional _timestamp)
   "Returns the LUID of records added since last sync.
 An new/added record is:
 a record without luid
  OR
 a record with luid, but without an entry in the mapping file
 is this the wisest way to check?
-better for the function to return a list of records, and assign the luids temporary, and save
-locally only if a succesful sync is made?
-note: there may be returned a <status> command from the server for this.  or we can request it."
+better for the function to return a list of records, and assign the luids
+temporary, and save locally only if a succesful sync is made?
+note: there may be returned a <status> command from the server for this.
+or we can request it."
   (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records "Started. ")
   (setq bbdb-syncml-next-luid (bbdb-syncml-get-next-luid))
 
@@ -482,7 +505,7 @@ note: there may be returned a <status> command from the server for this.  or we 
 
 
 
-(defun bbdb-syncml-get-all-records (&optional timestamp)
+(defun bbdb-syncml-get-all-records (&optional _timestamp)
   "Returns the LUID of all records. Used when doing slow sync."
   (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records "Started")
   ;; ensure that the next luid is up-to-date
@@ -517,13 +540,14 @@ note: there may be returned a <status> command from the server for this.  or we 
 (defun bbdb-syncml-get-modified-records (last-timestamp)
   "Returns the LUID of records modified since last sync.
 Checks the timestamp against the last sync value.
-TODO: This currently checks the bbdb property 'timestamp for each record against systemwide last-sync
-from .bbdb.syncml,  but what
-if a sync for just one particular record was unsuccessful at the last sync event/time? Probably,
-the OK message returned by the server should be used to modify a last timestamp in the mapping file,
-and this function should use this in some way. Or, when getting the unsuccesful message from server,
-set the timestamp of the given record to 1 second more than the last timestamp to trigger the sending
-replace during next sync"
+TODO: This currently checks the bbdb property \='timestamp for each record
+against systemwide last-sync from .bbdb.syncml,  but what
+if a sync for just one particular record was unsuccessful at the last sync
+event/time? Probably, the OK message returned by the server should be used to
+modify a last timestamp in the mapping file, and this function should use this
+in some way. Or, when getting the unsuccesful message from server, set the
+timestamp of the given record to 1 second more than the last timestamp to
+trigger the sending replace during next sync"
   (bbdb-syncml-debug 1 'bbdb-syncml-get-modified-records "Started with timestamp: %S" last-timestamp)
   ;; ensure that the next luid is up-to-date
   (setq bbdb-syncml-next-luid (bbdb-syncml-get-next-luid))
@@ -573,7 +597,8 @@ replace during next sync"
   "Returns the LUID of records deleted since last sync.
 
 This function checks all current bbdb-records against the mapping file.
-LUIDs present in the mapping file, but NOT in the BBDB have been deleted since last sync."
+LUIDs present in the mapping file, but NOT in the BBDB have been deleted since
+last sync."
   (let (deleted-luids)
     ;; first, put all luids in (bbdb-records) into a list
     (let (bbdb-records-luids)
@@ -640,7 +665,9 @@ Will not delete LUID notes field from a previuos synchronized dataset."
   (setq bbdb-syncml-next-luid (bbdb-syncml-get-next-luid)))
 
 (defun bbdb-syncml-read-mapping-file ()
-  "Reads the mapping file, and put the list of successful luids in a list. This list contains number, not strings.
+  "Reads the mapping file, and put the list of successful luids in a list. This
+list contains number, not strings.
+
 Returns the list."
   (bbdb-syncml-open-mapping-file)
   (set-buffer bbdb-syncml-mapping-buffer)
@@ -663,7 +690,7 @@ NOTE: should only be called after syncing is finished"
              (error "unable to find  position for luids in mapping file!"))
     (kill-region  (point) (line-end-position))
     (let* ((number-list (mapcar 'bbdb-syncml-element-to-number luid-list))
-           (unique-list (remove-duplicates number-list))
+           (unique-list (cl-remove-duplicates number-list))
            (sorted-list (sort unique-list '<)))
       (bbdb-syncml-debug 2 'bbdb-syncml-write-mapping-file "Sorted, unique luid-list is: %S" sorted-list)
       (bbdb-syncml-debug 2 'bbdb-syncml-write-mapping-file "LUIDs currently present in BBDB: %S" bbdb-syncml-existing-luids)
@@ -708,11 +735,12 @@ NOTE: should only be called after syncing is finished and successful."
     (match-string 1)))
 
 (defun bbdb-syncml-update-next-luid ()
-  "Sets the variable 'bbdb-syncml-next-luid based on the mapping file"
+  "Sets the variable \='bbdb-syncml-next-luid based on the mapping file"
   (setq bbdb-syncml-next-luid (bbdb-syncml-get-next-luid)))
 
 (defun bbdb-syncml-increment-luid ()
-  "Increments the current luid by one, and stores the new value in the mapping file, in the bbdb-syncml-next-luid variable, and returns the new value."
+  "Increments the current luid by one, and stores the new value in the mapping
+file, in the bbdb-syncml-next-luid variable, and returns the new value."
   (bbdb-syncml-update-next-luid)
   (bbdb-syncml-debug 1 'bbdb-syncml-increment-luid "Started. Current luid is %S" bbdb-syncml-next-luid)
   (set-buffer (find-file-noselect bbdb-syncml-mapping-file))
@@ -752,7 +780,8 @@ Should normally never be called, unless the mapping is out of sync"
 
 
 (defun bbdb-syncml-assign-luids ()
-  "Reads all records in the BBDB database, and assigns LUIDs to those not having one."
+  "Reads all records in the BBDB database, and assigns LUIDs to those not
+having one."
   ;; first, validate that there are no errorous luids in the database
   (bbdb-syncml-debug 1 'bbdb-syncml-assign-luids "Triggered. Proceeding with validate")
   (bbdb-syncml-validate-luids 't)
@@ -776,9 +805,11 @@ Should normally never be called, unless the mapping is out of sync"
   )
 
 (defun bbdb-syncml-validate-luids (reassign)
-  "Reads all BBDB records and checks if any LUID is above the bbdb-syncml-next-luid.
-If REASSIGN is true, then the bbdb-syncml-next-luid is updated to the higest value in the
-dataset + 1.
+  "Reads all BBDB records and checks if any LUID is above bbdb-syncml-next-luid.
+
+If REASSIGN is true, then the bbdb-syncml-next-luid is updated to the higest
+value in the dataset + 1.
+
 If REASSIGN is false, the function is aborted.
 
 Returns a list with all existing luids in the BBDB."
@@ -823,13 +854,13 @@ bbdb-syncml-mapping-file"
     (bbdb-search (bbdb-records) nil nil nil notes)))
 
 
-(defun bbdb-syncml-add-record (record)
+(defun bbdb-syncml-add-record (_record)
   ())
 
-(defun bbdb-syncml-delete-record (record)
+(defun bbdb-syncml-delete-record (_record)
   ())
 
-(defun bbdb-syncml-modify-record (record)
+(defun bbdb-syncml-modify-record (_record)
   ())
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -842,10 +873,13 @@ bbdb-syncml-mapping-file"
 ;;
 ;;;;;;;;;;;;;;;;;;
 
-(defun bbdb-syncml-process-package-4 (pkg5-doc added-luids modified-luids deleted-luids)
-  "This functions processes the response package #4 from the server (assumed to exist in SYNCML-RESPONSE-DOC
+(defun bbdb-syncml-process-package-4 (pkg5-doc _added-luids _modified-luids _deleted-luids)
+  "This functions processes the response package #4 from the server (assumed to
+exist in SYNCML-RESPONSE-DOC
+
 and builds the body of package #5.
-It also updates the BBDB-SYNCML-PKG5-OK-LUIDS variable, to be stored in the mapping list."
+It also updates the BBDB-SYNCML-PKG5-OK-LUIDS variable, to be stored in the
+mapping list."
   (if (not (dom-document-p pkg5-doc))
       (throw 'wrong-type nil))
   ;; mode of operation:  as we iterate over <status>es, one <sync> and it's children <add>s, <replace>s and <delete>s, we process each in turn.

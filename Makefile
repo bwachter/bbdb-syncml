@@ -13,7 +13,7 @@ autoloads:
 	 (loaddefs-generate '(\"lisp\") \"$(AUTOLOADS_FILE)\"))"
 
 byte-compile: clean
-	@$(EMACS) -Q -L bbdb/lisp -L contrib -L dom.el -L . --batch -f batch-byte-compile *.el
+	@$(EMACS) -Q -L bbdb/lisp -L contrib -L ../bbdb-vcard -L dom.el -L . --batch -f batch-byte-compile *.el
 
 byte-compile-tests: clean byte-compile
 	@$(EMACS) -Q -L . --batch -f batch-byte-compile t/*.el

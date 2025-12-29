@@ -48,13 +48,16 @@
 (require 'syncml-commands)
 
 ;; TODO, we probably want to clean up some of the variables
-(defvar syncml-doing-slow-sync)
-(defvar syncml-response-doc)
-(defvar syncml-next-respuri)
-(defvar syncml-data)
-(defvar syncml-response-uri)
-(defvar syncml-response-xml)
-(defvar curl-process)
+(defvar syncml-doing-slow-sync nil
+  "Flag indicating whether a slow sync is being performed.")
+(defvar syncml-response-doc nil
+  "DOM document containing the parsed response from the SyncML server.")
+(defvar syncml-next-respuri nil
+  "URI to use for the next request if the server specifies one.")
+(defvar syncml-data nil)
+(defvar syncml-response-uri nil)
+(defvar syncml-response-xml nil)
+(defvar curl-process nil)
 
 ;;; Setting debug level to max:
 (setq syncml-debug t)
