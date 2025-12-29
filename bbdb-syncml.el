@@ -490,27 +490,28 @@ or we can request it."
                          "Checking record having name and company: %S - %S"
                          (bbdb-record-name node)
                          (bbdb-record-organization node))
-      (if (and (not (null (bbdb-record-getprop node 'luid)))
-               (member (string-to-number (bbdb-record-getprop node 'luid)) bbdb-syncml-mapping-luid-list))
+      (if (and (not (null (bbdb-record-field node 'luid)))
+               (member (string-to-number (bbdb-record-field node 'luid)) bbdb-syncml-mapping-luid-list))
           ;; record has a luid and is present in the mapping file. It is not added since last successful sync
           (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records
                              "The LUID %S for this record already exists in the mapping file. Record is not added since last sync."
-                             (bbdb-record-getprop node 'luid))
+                             (bbdb-record-field node 'luid))
         ;; record is added since last successful sync.
         ;; Create a new luid if none exists, and increment counter.
         ;; The mapping file is updated only after a successful sync, so there is no need for
         ;; this function to delete the luid if syncing failed.
         (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records "Record is added since last successful sync. Checking if we must reassign luid.")
-        (if (null (bbdb-record-getprop node 'luid))
+        (if (null (bbdb-record-field node 'luid))
             (progn
               (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records
                                  "Record %S doesn't have a luid. Assigning %S" (bbdb-record-name node) bbdb-syncml-next-luid)
-              (bbdb-record-putprop node 'luid bbdb-syncml-next-luid)
+              (bbdb-record-set-field node 'luid bbdb-syncml-next-luid)
+              (bbdb-change-record node)
               (bbdb-syncml-increment-luid)
               (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records "Saving BBDB database...")
               (bbdb-save)))
-        (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records "Adding luid %S to the list of added luids." (bbdb-record-getprop node 'luid))
-        (push (bbdb-record-getprop node 'luid) added-luid-list)))))
+        (bbdb-syncml-debug 1 'bbdb-syncml-get-added-records "Adding luid %S to the list of added luids." (bbdb-record-field node 'luid))
+        (push (bbdb-record-field node 'luid) added-luid-list)))))
 
 
 
@@ -527,21 +528,22 @@ or we can request it."
                          "Checking record with name and company: %S - %S"
                          (bbdb-record-name node)
                          (bbdb-record-organization node))
-      (if (not (null (bbdb-record-getprop node 'luid))) ;; record has a luid.
+      (if (not (null (bbdb-record-field node 'luid))) ;; record has a luid.
           (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records
-                             "Record already has LUID: %S" (bbdb-record-getprop node 'luid))
+                             "Record already has LUID: %S" (bbdb-record-field node 'luid))
         ;; Create a new luid if none exists, and increment counter.
         ;; The mapping file is updated only after a successful sync, so there is no need for
         ;; this function to delete the luid if syncing failed.
         (progn
           (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records
                              "Record %S doesn't have a luid. Assigning %S" (bbdb-record-name node) bbdb-syncml-next-luid)
-          (bbdb-record-putprop node 'luid bbdb-syncml-next-luid)
+          (bbdb-record-set-field node 'luid bbdb-syncml-next-luid)
+          (bbdb-change-record node)
           (bbdb-syncml-increment-luid)
           (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records "Saving BBDB database...")
           (bbdb-save)))
-      (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records "Adding luid %S to the list of all luids." (bbdb-record-getprop node 'luid))
-      (push (bbdb-record-getprop node 'luid) all-luid-list))))
+      (bbdb-syncml-debug 1 'bbdb-syncml-get-all-records "Adding luid %S to the list of all luids." (bbdb-record-field node 'luid))
+      (push (bbdb-record-field node 'luid) all-luid-list))))
 
 
 
@@ -566,15 +568,15 @@ trigger the sending replace during next sync"
                          "Checking node: %S - %S"
                          (bbdb-record-name node)
                          (bbdb-record-organization node))
-      (if (null (bbdb-record-getprop node 'luid))
+      (if (null (bbdb-record-field node 'luid))
           ;; record does not have a luid. it is added since the TIMESTAMP.
           ;; as bbdb-syncml-get-added-records will add a luid , not in this function.  just debug.
           (bbdb-syncml-debug 1 'bbdb-syncml-get-modified-records
                              "No LUID for record." )
         ;; record does have a luid.
         ;; check if it's modified timestamp is newer than the timestamp of the last sync.
-        (let ((record-timestamp (bbdb-record-getprop node 'timestamp))
-              (record-luid (bbdb-record-getprop node 'luid)))
+        (let ((record-timestamp (bbdb-record-field node 'timestamp))
+              (record-luid (bbdb-record-field node 'luid)))
           (bbdb-syncml-debug 1 'bbdb-syncml-get-modified-records
                              "Node has timestamp of %S. " record-timestamp)
           (if (or (string< record-timestamp last-timestamp)
@@ -612,7 +614,7 @@ last sync."
     ;; first, put all luids in (bbdb-records) into a list
     (let (bbdb-records-luids)
       (dolist (node (bbdb-records) bbdb-records-luids)
-        (push (bbdb-record-getprop node 'luid) bbdb-records-luids))
+        (push (bbdb-record-field node 'luid) bbdb-records-luids))
       (bbdb-syncml-debug 2 'bbdb-syncml-get-deleted-records "All luids: %S" bbdb-records-luids)
 
       ;; then, iterate over all luids in the mapping list, and return all which are present
@@ -797,15 +799,16 @@ having one."
   (setq bbdb-syncml-next-luid (bbdb-syncml-get-next-luid))
   (dolist (node (bbdb-records) nil)
     (bbdb-syncml-debug 1 'bbdb-syncml-assign-luids "Validating node: %S" node)
-    (if (not (null (bbdb-record-getprop node 'luid)))
+    (if (not (null (bbdb-record-field node 'luid)))
         ;; record has a luid. just debug.
         (bbdb-syncml-debug 1 'bbdb-syncml-assign-luids
                            "Found LUID for %S: %S "
                            (bbdb-record-name node)
-                           (bbdb-record-getprop node 'LUID))
+                           (bbdb-record-field node 'LUID))
       ;; record does not have a luid. Create one, and increment counter.
       (bbdb-syncml-debug 1 'bbdb-syncml-assign-luids "Node unhas luid. assigning %S." bbdb-syncml-next-luid)
-      (bbdb-record-putprop node 'luid bbdb-syncml-next-luid)
+      (bbdb-record-set-field node 'luid bbdb-syncml-next-luid)
+      (bbdb-change-record node)
       (bbdb-save)
       (bbdb-syncml-increment-luid)))
   (bbdb-save)
@@ -829,22 +832,22 @@ Returns a list with all existing luids in the BBDB."
   (let (existing-luids)
     (dolist (node (bbdb-records) existing-luids)
       (bbdb-syncml-debug 2 'bbdb-syncml-validate-luids "examining a node: %S" node)
-      (if (null (bbdb-record-getprop node 'luid))
+      (if (null (bbdb-record-field node 'luid))
           ;; record does not have a luid. All is well.
           (bbdb-syncml-debug 1 'bbdb-syncml-validate-luids "node doesn't have a LUID. all is well")
         ;; record has a luid. message it for debug.
-        (bbdb-syncml-debug 1 'bbdb-syncml-validate-luids "Validating BBDB. Found LUID for %S: %S " (bbdb-record-name node) (bbdb-record-getprop node 'luid))
-        (if (>= (string-to-number (bbdb-record-getprop node 'luid)) (string-to-number bbdb-syncml-next-luid))
+        (bbdb-syncml-debug 1 'bbdb-syncml-validate-luids "Validating BBDB. Found LUID for %S: %S " (bbdb-record-name node) (bbdb-record-field node 'luid))
+        (if (>= (string-to-number (bbdb-record-field node 'luid)) (string-to-number bbdb-syncml-next-luid))
             (progn (bbdb-syncml-debug 1 'bbdb-syncml-validate-luids
                                       "ERROR: Luid %S is greater than value of next luid %S."
-                                      (bbdb-record-getprop node 'luid) bbdb-syncml-next-luid)
+                                      (bbdb-record-field node 'luid) bbdb-syncml-next-luid)
                    (if reassign
                        (progn (bbdb-syncml-debug 1 'bbdb-syncml-validate-luids "Reassigning luids")
                               (bbdb-syncml-set-next-luid
-                               (+ (string-to-number (bbdb-record-getprop node 'luid)) 1)))
+                               (+ (string-to-number (bbdb-record-field node 'luid)) 1)))
                      (bbdb-syncml-debug 1 'bbdb-syncml-validate-luids "Not reassigning luids.  Aborting...")
                      (error "Consistency error in the syncml IDs in BBDB."))))
-        (push (bbdb-record-getprop node 'luid) existing-luids)))))
+        (push (bbdb-record-field node 'luid) existing-luids)))))
 
 (defun bbdb-syncml-create-luid-hook ()
   "This function should be called whenever a new bbdb record is created.
@@ -1033,8 +1036,8 @@ mapping list."
                           )
                      (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "%S" vcard)
 
-                     (bbdb-record-putprop newrecord 'luid bbdb-syncml-next-luid)
-                     (bbdb-record-putprop newrecord 'creation-date syncml-current-timestamp)
+                     (bbdb-record-set-field newrecord 'luid bbdb-syncml-next-luid)
+                     (bbdb-record-set-field newrecord 'creation-date syncml-current-timestamp)
                      ;; because of delay in this program, we temporarily disabling the automatic timestamp hook, as we want to use the
                      ;; syncml-current-timestamp instead,
                      ;; otherwise this record will be tagged as modified during next sync even if no changes was made.
@@ -1042,7 +1045,8 @@ mapping list."
                      ;;(bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "BBDB-CHANGE-HOOK: %S"
                      ;;                   (describe-variable 'bbdb-change-hook))
                      ;;(sleep-for 1)
-                     (bbdb-record-putprop newrecord 'timestamp syncml-current-timestamp)
+                     (bbdb-record-set-field newrecord 'timestamp syncml-current-timestamp)
+                     (bbdb-change-record newrecord)
                      (bbdb-save)
                      (add-hook 'bbdb-change-hook 'bbdb-timestamp-hook)
 
@@ -1063,7 +1067,7 @@ mapping list."
                                                                          (syncml-create-target-command pkg5-doc (dom-node-text-content
                                                                                                                  (car (xpath-resolve add-node
                                                                                                                                      "child::Item/Source/LocURI"))))
-                                                                         (syncml-create-source-command pkg5-doc (bbdb-record-getprop newrecord 'luid))))
+                                                                         (syncml-create-source-command pkg5-doc (bbdb-record-field newrecord 'luid))))
                             )
 
                        (bbdb-syncml-debug 2 'bbdb-syncml-process-package-4 "Adding <Status> node for the new record to pkg5")
@@ -1076,7 +1080,7 @@ mapping list."
 
                        ;; record added.  update mapping list.
                        (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "<Status> command created for new record.")
-                       (push (bbdb-record-getprop newrecord 'luid) bbdb-syncml-pkg5-ok-luids)
+                       (push (bbdb-record-field newrecord 'luid) bbdb-syncml-pkg5-ok-luids)
                        )
                      )))
 
@@ -1098,8 +1102,8 @@ mapping list."
                             (vcard-raw (dom-node-text-content (car (xpath-resolve add-node "child::Item/child::Data"))))
                             (vcard (replace-regexp-in-string "\r\n" "\n" vcard-raw))
                             (newrecord (bbdb-vcard-import-vcard vcard)))
-                       (bbdb-record-putprop newrecord 'luid luid-to-delete)
-                       (bbdb-record-putprop newrecord 'creation-date syncml-current-timestamp)
+                       (bbdb-record-set-field newrecord 'luid luid-to-delete)
+                       (bbdb-record-set-field newrecord 'creation-date syncml-current-timestamp)
                        ;; because of delay in this program, we temporarily disabling the automatic timestamp hook, as we want to use the
                        ;; syncml-current-timestamp instead,
                        ;; otherwise this record will be tagged as modified during next sync even if no changes was made.
@@ -1108,11 +1112,12 @@ mapping list."
                        ;(bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "BBDB-CHANGE-HOOK: %S"
                        ;                   (describe-variable 'bbdb-change-hook))
 
-                       (bbdb-record-putprop newrecord 'timestamp syncml-current-timestamp)
+                       (bbdb-record-set-field newrecord 'timestamp syncml-current-timestamp)
+                       (bbdb-change-record newrecord)
                        (bbdb-save)
                        (add-hook 'bbdb-change-hook 'bbdb-timestamp-hook)
                        (bbdb-syncml-debug 1 'bbdb-syncml-process-package-4 "Modified record - new record created with same luid %s as old."
-                                          (bbdb-record-getprop newrecord 'luid))
+                                          (bbdb-record-field newrecord 'luid))
                        (let* ((replace-status-node
                                (syncml-create-status-command
                                 pkg5-doc
@@ -1122,7 +1127,7 @@ mapping list."
                                 "Replace"
                                 (syncml-create-data-command pkg5-doc "201") ;; 201 = the requested item was added.
                                 nil
-                                (syncml-create-sourceref-command pkg5-doc (bbdb-record-getprop newrecord 'luid)))))
+                                (syncml-create-sourceref-command pkg5-doc (bbdb-record-field newrecord 'luid)))))
                          (bbdb-syncml-debug 2 'bbdb-syncml-process-package-4 "Adding <Status> node for the modified record to pkg5")
                          (dom-node-append-child (car (xpath-resolve (dom-document-element pkg5-doc)
                                                                     "descendant::SyncBody"))
